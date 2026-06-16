@@ -14,6 +14,8 @@ using Core.Security.JWT;
 using Core.Security.WebApi.Extensions;
 using Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Persistence.Contexts;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -107,6 +109,14 @@ builder.Services.AddSwaggerGen(opt =>
 });
 
 var app = builder.Build();
+
+// Apply EF migrations on startup so a fresh hosted database (e.g. Neon on first deploy) gets its
+// schema - nothing runs `dotnet ef database update` in that environment.
+using (IServiceScope migrationScope = app.Services.CreateScope())
+{
+    BaseDbContext db = migrationScope.ServiceProvider.GetRequiredService<BaseDbContext>();
+    db.Database.Migrate();
+}
 
 if (environment == "Development")
 {
