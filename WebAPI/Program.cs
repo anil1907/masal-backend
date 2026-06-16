@@ -108,6 +108,12 @@ builder.Services.AddSwaggerGen(opt =>
     opt.OperationFilter<BearerSecurityRequirementOperationFilter>();
 });
 
+// Background story generation: in-memory queue + a worker so `tonight` returns immediately.
+builder.Services.AddSingleton<WebAPI.BackgroundServices.StoryGenerationQueue>();
+builder.Services.AddSingleton<Application.Services.StoryPipeline.IStoryGenerationQueue>(
+    sp => sp.GetRequiredService<WebAPI.BackgroundServices.StoryGenerationQueue>());
+builder.Services.AddHostedService<WebAPI.BackgroundServices.StoryGenerationBackgroundService>();
+
 var app = builder.Build();
 
 // Apply EF migrations on startup so a fresh hosted database (e.g. Neon on first deploy) gets its

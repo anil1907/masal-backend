@@ -43,6 +43,7 @@ public static class ApplicationServiceRegistration
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
         services.AddSingleton<ILogger, SerilogSeqLogger>(_ => new SerilogSeqLogger(seqLogConfiguration));
 
+        services.AddScoped<Application.Services.StoryPipeline.IStoryPipeline, Application.Services.StoryPipeline.StoryPipeline>();
         services.AddScoped<ITokenHelper, TokenHelper>();
         services.AddScoped<IAuthService, AuthManager>();
         services.AddScoped<IUserService, UserManager>();

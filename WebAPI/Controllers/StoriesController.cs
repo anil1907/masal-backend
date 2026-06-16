@@ -33,11 +33,11 @@ public class StoriesController : BaseController
     public async Task<IActionResult> SynthesizeStore([FromBody] SynthesizeStoreCommand command)
         => Ok(await Mediator.Send(command));
 
-    /// Home screen state: tonight's playable chapter, or "come back tomorrow" (1 story/day).
-    /// Generates only when needed (first story / new day after the previous was heard).
+    /// Home screen state. Returns immediately; generation runs in the background ("preparing" ->
+    /// client polls). Body is optional: { "retry": true } re-tries after a failure.
     [HttpPost("tonight")]
-    public async Task<IActionResult> Tonight()
-        => Ok(await Mediator.Send(new GetTonightStoryCommand()));
+    public async Task<IActionResult> Tonight([FromBody] GetTonightStoryCommand? command)
+        => Ok(await Mediator.Send(command ?? new GetTonightStoryCommand()));
 
     /// The child's full story arc (library), newest first. Read-only.
     [HttpGet("library")]

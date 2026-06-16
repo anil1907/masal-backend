@@ -15,6 +15,10 @@ public class TonightStoryResponse : IResponse
     public const string StatusReady = "ready";
     public const string StatusComeBackTomorrow = "comeBackTomorrow";
     public const string StatusFreeLimitReached = "freeLimitReached";
+    /// Generation is running in the background; the client should poll until ready.
+    public const string StatusPreparing = "preparing";
+    /// The last background generation failed; client shows an error + manual retry.
+    public const string StatusFailed = "failed";
 
     public string Status { get; set; } = StatusReady;
     public bool Available { get; set; }
