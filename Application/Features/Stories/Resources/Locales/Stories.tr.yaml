@@ -1,0 +1,3 @@
+DailyGenerationLimitExceeded: "Bugünlük masal üretim sınırına ulaştın. Yarın yeni bir masal seni bekliyor olacak."
+StoryFailedSafetyCheck: "Bu masal güvenlik kontrolünden geçemedi. Lütfen tekrar dene."
+ChapterNotFound: "Masal bölümü bulunamadı."

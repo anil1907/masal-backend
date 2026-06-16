@@ -1,0 +1,8 @@
+UserDontExists: "Kullanıcı bulunmuyor."
+PasswordDontMatch: "Parola eşleşmiyor."
+OtpResendTooSoon: "Yeni kod istemek için lütfen biraz bekleyin."
+OtpDailyLimitExceeded: "Günlük kod gönderme sınırına ulaştınız. Lütfen daha sonra tekrar deneyin."
+OtpInvalidOrExpired: "Kodun süresi doldu veya geçersiz. Lütfen yeni bir kod isteyin."
+OtpTooManyAttempts: "Çok fazla hatalı deneme yaptınız. Lütfen yeni bir kod isteyin."
+OtpCodeDontMatch: "Girdiğiniz kod hatalı."
+RefreshTokenInvalid: "Oturumun süresi doldu. Lütfen tekrar giriş yapın."

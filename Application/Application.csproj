@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AutoMapper" Version="13.0.1" />
+        <PackageReference Include="FluentValidation" Version="11.10.0" />
+        <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
+        <PackageReference Include="MediatR" Version="12.2.0" />
+        <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.0.1" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
+    </ItemGroup>
+    
+    <ItemGroup>
+      <ProjectReference Include="..\Core\Core.csproj" />
+      <ProjectReference Include="..\Domain\Domain.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Update="Features\**\Resources\Locales\*.*.yaml">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+</Project>

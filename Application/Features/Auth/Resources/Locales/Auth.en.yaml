@@ -1,0 +1,8 @@
+UserDontExists: "User does not exist."
+PasswordDontMatch: "Password does not match."
+OtpResendTooSoon: "Please wait a moment before requesting a new code."
+OtpDailyLimitExceeded: "You have reached the daily limit for code requests. Please try again later."
+OtpInvalidOrExpired: "The code has expired or is invalid. Please request a new one."
+OtpTooManyAttempts: "Too many incorrect attempts. Please request a new code."
+OtpCodeDontMatch: "The code you entered is incorrect."
+RefreshTokenInvalid: "Your session has expired. Please sign in again."

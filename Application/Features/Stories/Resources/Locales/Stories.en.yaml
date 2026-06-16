@@ -1,0 +1,3 @@
+DailyGenerationLimitExceeded: "You have reached today's story generation limit. A new story will be waiting tomorrow."
+StoryFailedSafetyCheck: "This story did not pass the safety check. Please try again."
+ChapterNotFound: "Story chapter not found."

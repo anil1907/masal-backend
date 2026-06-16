@@ -1,0 +1,7 @@
+UserNotExists: "Kullanıcı bulunmuyor."
+UserAlreadyExists: "Kullanıcı zaten mevcut."
+UsernameAlreadyExists: "Bu kullanıcı adı zaten kullanılıyor."
+EmailAlreadyExists: "Bu e-posta adresi zaten kullanılıyor."
+InvalidPassword: "Geçersiz şifre."
+UserCannotBeDeleted: "Bu kullanıcı silinemez."
+UserDashboardRetrieved: "Kullanıcı dashboard verileri başarıyla getirildi."

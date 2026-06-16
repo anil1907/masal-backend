@@ -1,0 +1,7 @@
+UserNotExists: "Пользователь не найден."
+UserAlreadyExists: "Пользователь уже существует."
+UsernameAlreadyExists: "Это имя пользователя уже используется."
+EmailAlreadyExists: "Этот адрес электронной почты уже используется."
+InvalidPassword: "Неверный пароль."
+UserCannotBeDeleted: "Этот пользователь не может быть удален."
+UserDashboardRetrieved: "Данные панели пользователя успешно получены."
