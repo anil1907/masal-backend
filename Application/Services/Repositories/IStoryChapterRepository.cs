@@ -5,10 +5,10 @@ namespace Application.Services.Repositories;
 
 public interface IStoryChapterRepository : IAsyncRepository<StoryChapter>, IRepository<StoryChapter>
 {
-    /// The most recent chapter in the child's arc (highest Number), or null if none yet.
-    Task<StoryChapter?> GetLatestForChildAsync(long childId, CancellationToken cancellationToken = default);
+    /// The most recent chapter in a series (highest Number), or null if the series is empty.
+    Task<StoryChapter?> GetLatestForSeriesAsync(long seriesId, CancellationToken cancellationToken = default);
 
-    /// All chapters for the child, newest first (library).
+    /// All chapters for the child, newest first (library, across all series).
     Task<List<StoryChapter>> GetAllForChildAsync(long childId, CancellationToken cancellationToken = default);
 
     /// A single chapter scoped to the child (ownership check for mark-listened).

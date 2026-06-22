@@ -17,6 +17,7 @@ public class StoryPipeline : IStoryPipeline
 
     private readonly IChildRepository _childRepository;
     private readonly IStoryChapterRepository _chapterRepository;
+    private readonly IStorySeriesRepository _seriesRepository;
     private readonly IStoryGenerationLogRepository _generationLogRepository;
     private readonly IStoryGenerator _generator;
     private readonly IStorySafetyGate _safetyGate;
@@ -28,6 +29,7 @@ public class StoryPipeline : IStoryPipeline
     public StoryPipeline(
         IChildRepository childRepository,
         IStoryChapterRepository chapterRepository,
+        IStorySeriesRepository seriesRepository,
         IStoryGenerationLogRepository generationLogRepository,
         IStoryGenerator generator,
         IStorySafetyGate safetyGate,
@@ -38,6 +40,7 @@ public class StoryPipeline : IStoryPipeline
     {
         _childRepository = childRepository;
         _chapterRepository = chapterRepository;
+        _seriesRepository = seriesRepository;
         _generationLogRepository = generationLogRepository;
         _generator = generator;
         _safetyGate = safetyGate;
@@ -53,8 +56,13 @@ public class StoryPipeline : IStoryPipeline
         if (child is null)
             throw new BusinessException("Çocuk profili bulunamadı.");
 
-        // Compute the next chapter from the persisted arc at run time (fresh).
-        StoryChapter? latest = await _chapterRepository.GetLatestForChildAsync(child.Id, cancellationToken);
+        // Continue the child's ACTIVE series (create one if somehow missing).
+        StorySeries? series = await _seriesRepository.GetActiveForChildAsync(child.Id, cancellationToken);
+        if (series is null)
+            series = await _seriesRepository.AddAsync(
+                new StorySeries { ChildId = child.Id, Title = "Yeni masal", IsActive = true }, cancellationToken);
+
+        StoryChapter? latest = await _chapterRepository.GetLatestForSeriesAsync(series.Id, cancellationToken);
         int number = latest is null ? 1 : latest.Number + 1;
         string? previousSummary = latest?.Summary;
 
@@ -82,12 +90,13 @@ public class StoryPipeline : IStoryPipeline
         await _storyBusinessRules.StoryShouldPassSafety(verdict.Passed);
 
         byte[] mp3 = await _tts.SynthesizeMp3Async(generated.Text, cancellationToken);
-        string objectKey = $"chapters/{child.Id}/{number}-{Guid.NewGuid():N}.mp3";
+        string objectKey = $"chapters/{child.Id}/{series.Id}-{number}-{Guid.NewGuid():N}.mp3";
         await _audio.UploadMp3Async(mp3, objectKey, cancellationToken);
 
         var chapter = new StoryChapter
         {
             ChildId = child.Id,
+            SeriesId = series.Id,
             Number = number,
             Title = generated.Title,
             Text = generated.Text,
@@ -96,5 +105,24 @@ public class StoryPipeline : IStoryPipeline
             DurationSeconds = (int)(mp3.Length * 8L / TtsBitrate)
         };
         await _chapterRepository.AddAsync(chapter, cancellationToken);
+
+        // First chapter of a series names the series (from the generated title).
+        if (number == 1)
+        {
+            StorySeries? tracked = await _seriesRepository.GetForChildAsync(series.Id, child.Id, cancellationToken);
+            if (tracked is not null)
+            {
+                tracked.Title = DeriveSeriesTitle(generated.Title);
+                await _seriesRepository.UpdateAsync(tracked, cancellationToken);
+            }
+        }
+    }
+
+    /// "Fındık'ın Uzay Maceraları - Bölüm 1: ..." -> "Fındık'ın Uzay Maceraları".
+    private static string DeriveSeriesTitle(string chapterTitle)
+    {
+        int sep = chapterTitle.IndexOf(" - ", StringComparison.Ordinal);
+        string title = sep > 0 ? chapterTitle[..sep] : chapterTitle;
+        return string.IsNullOrWhiteSpace(title) ? "Masal serisi" : title.Trim();
     }
 }

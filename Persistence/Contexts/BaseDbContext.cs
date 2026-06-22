@@ -21,6 +21,7 @@ public class BaseDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<StoryGenerationLog> StoryGenerationLogs { get; set; }
     public DbSet<StoryChapter> StoryChapters { get; set; }
+    public DbSet<StorySeries> StorySeries { get; set; }
 
     public BaseDbContext(DbContextOptions dbContextOptions,
         IConfiguration configuration)

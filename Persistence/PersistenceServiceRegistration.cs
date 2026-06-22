@@ -24,6 +24,7 @@ public static class PersistenceServiceRegistration
         services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
         services.AddScoped<IStoryGenerationLogRepository, StoryGenerationLogRepository>();
         services.AddScoped<IStoryChapterRepository, StoryChapterRepository>();
+        services.AddScoped<IStorySeriesRepository, StorySeriesRepository>();
 
         return services;
     }

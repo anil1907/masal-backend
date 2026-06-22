@@ -12,6 +12,7 @@ public class StoryChapterConfiguration : IEntityTypeConfiguration<StoryChapter>
 
         builder.Property(c => c.Id).HasColumnName("Id").IsRequired();
         builder.Property(c => c.ChildId).HasColumnName("ChildId").IsRequired();
+        builder.Property(c => c.SeriesId).HasColumnName("SeriesId").IsRequired();
         builder.Property(c => c.Number).HasColumnName("Number").IsRequired();
         builder.Property(c => c.Title).HasColumnName("Title").IsRequired();
         builder.Property(c => c.Text).HasColumnName("Text").IsRequired();
@@ -24,8 +25,10 @@ public class StoryChapterConfiguration : IEntityTypeConfiguration<StoryChapter>
         builder.Property(c => c.DeletedDate).HasColumnName("DeletedDate");
 
         builder.HasOne(c => c.Child).WithMany().HasForeignKey(c => c.ChildId).OnDelete(DeleteBehavior.Cascade);
-        // One row per (child, chapter number); also the lookup for "latest chapter".
-        builder.HasIndex(c => new { c.ChildId, c.Number }).IsUnique();
+        builder.HasOne(c => c.Series).WithMany().HasForeignKey(c => c.SeriesId).OnDelete(DeleteBehavior.Cascade);
+        // One row per (series, chapter number); also the lookup for "latest chapter in a series".
+        builder.HasIndex(c => new { c.SeriesId, c.Number }).IsUnique();
+        builder.HasIndex(c => c.ChildId);   // weekly free-limit count
 
         builder.HasQueryFilter(c => !c.DeletedDate.HasValue);
         builder.HasBaseType((string)null!);

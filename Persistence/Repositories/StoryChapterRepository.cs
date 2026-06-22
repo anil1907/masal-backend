@@ -10,11 +10,11 @@ public class StoryChapterRepository : EfRepositoryBase<StoryChapter, BaseDbConte
 {
     public StoryChapterRepository(BaseDbContext context) : base(context) { }
 
-    public async Task<StoryChapter?> GetLatestForChildAsync(long childId, CancellationToken cancellationToken = default)
+    public async Task<StoryChapter?> GetLatestForSeriesAsync(long seriesId, CancellationToken cancellationToken = default)
     {
         return await Query()
             .AsNoTracking()
-            .Where(c => c.ChildId == childId)
+            .Where(c => c.SeriesId == seriesId)
             .OrderByDescending(c => c.Number)
             .FirstOrDefaultAsync(cancellationToken);
     }

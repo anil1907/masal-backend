@@ -8,6 +8,7 @@ namespace Application.Features.Stories.Dtos;
 public class ChapterDto
 {
     public long Id { get; set; }
+    public long SeriesId { get; set; }
     public int Number { get; set; }
     public string Title { get; set; } = "";
     public string Summary { get; set; } = "";
@@ -21,6 +22,7 @@ public class ChapterDto
         => new()
         {
             Id = c.Id,
+            SeriesId = c.SeriesId,
             Number = c.Number,
             Title = c.Title,
             Summary = c.Summary,

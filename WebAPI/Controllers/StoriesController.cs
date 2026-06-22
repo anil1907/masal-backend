@@ -1,10 +1,13 @@
+using Application.Features.Stories.Commands.ActivateSeries;
 using Application.Features.Stories.Commands.GenerateChapter;
 using Application.Features.Stories.Commands.MarkListened;
+using Application.Features.Stories.Commands.NewSeries;
 using Application.Features.Stories.Commands.SynthesizePreview;
 using Application.Features.Stories.Commands.SynthesizeStore;
 using Application.Features.Stories.Commands.Tonight;
 using Application.Features.Stories.Queries.AudioUrl;
 using Application.Features.Stories.Queries.Library;
+using Application.Features.Stories.Queries.SeriesList;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -43,6 +46,21 @@ public class StoriesController : BaseController
     [HttpGet("library")]
     public async Task<IActionResult> Library()
         => Ok(await Mediator.Send(new GetLibraryQuery()));
+
+    /// Start a brand-new story series (the current one stays resumable). Returns "preparing".
+    [HttpPost("series/new")]
+    public async Task<IActionResult> NewSeries()
+        => Ok(await Mediator.Send(new NewStorySeriesCommand()));
+
+    /// List the child's story series (named arcs) with chapter counts + which is active.
+    [HttpGet("series")]
+    public async Task<IActionResult> Series()
+        => Ok(await Mediator.Send(new GetSeriesListQuery()));
+
+    /// Resume a paused series: make it active so tonight continues it.
+    [HttpPost("series/activate")]
+    public async Task<IActionResult> ActivateSeries([FromBody] ActivateSeriesCommand command)
+        => Ok(await Mediator.Send(command));
 
     /// Mark a chapter as fully heard - unlocks the next day's chapter.
     [HttpPost("mark-listened")]

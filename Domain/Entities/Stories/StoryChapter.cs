@@ -12,7 +12,11 @@ public class StoryChapter : Entity
     public long ChildId { get; set; }
     public virtual Child Child { get; set; } = default!;
 
-    /// 1-based position in the arc.
+    /// The series (named arc) this chapter belongs to.
+    public long SeriesId { get; set; }
+    public virtual StorySeries Series { get; set; } = default!;
+
+    /// 1-based position within its series.
     public int Number { get; set; }
     public string Title { get; set; } = default!;
     public string Text { get; set; } = default!;

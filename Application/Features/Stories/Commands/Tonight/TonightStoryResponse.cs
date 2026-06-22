@@ -23,4 +23,6 @@ public class TonightStoryResponse : IResponse
     public string Status { get; set; } = StatusReady;
     public bool Available { get; set; }
     public ChapterDto? Chapter { get; set; }
+    /// The active series' name (for the home screen).
+    public string? SeriesTitle { get; set; }
 }
