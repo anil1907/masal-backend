@@ -16,6 +16,7 @@ public class ChildConfiguration : IEntityTypeConfiguration<Child>
         builder.Property(c => c.Fears).HasColumnName("Fears").HasColumnType("text[]").IsRequired();
         builder.Property(c => c.Interests).HasColumnName("Interests").HasColumnType("text[]").IsRequired();
         builder.Property(c => c.AgeBand).HasColumnName("AgeBand");
+        builder.Property(c => c.Gender).HasColumnName("Gender");
         builder.Property(c => c.CreatedDate).HasColumnName("CreatedDate").IsRequired();
         builder.Property(c => c.UpdatedDate).HasColumnName("UpdatedDate");
         builder.Property(c => c.DeletedDate).HasColumnName("DeletedDate");

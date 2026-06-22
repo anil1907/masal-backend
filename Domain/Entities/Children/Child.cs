@@ -14,4 +14,6 @@ public class Child : Entity
     public List<string> Fears { get; set; } = [];
     public List<string> Interests { get; set; } = [];
     public string? AgeBand { get; set; }
+    /// "kız" | "erkek" | null. Guides pronouns / how the hero is portrayed.
+    public string? Gender { get; set; }
 }

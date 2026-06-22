@@ -44,6 +44,7 @@ public static class ApplicationServiceRegistration
         services.AddSingleton<ILogger, SerilogSeqLogger>(_ => new SerilogSeqLogger(seqLogConfiguration));
 
         services.AddScoped<Application.Services.StoryPipeline.IStoryPipeline, Application.Services.StoryPipeline.StoryPipeline>();
+        services.AddScoped<Application.Services.StoryPipeline.StoryGate>();
         services.AddScoped<ITokenHelper, TokenHelper>();
         services.AddScoped<IAuthService, AuthManager>();
         services.AddScoped<IUserService, UserManager>();

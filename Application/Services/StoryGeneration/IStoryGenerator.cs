@@ -7,7 +7,8 @@ public record StoryGenerationInput(
     IReadOnlyList<string> Interests,
     string? AgeBand,
     int ChapterNumber,
-    string? PreviousSummary
+    string? PreviousSummary,
+    string? Gender = null
 );
 
 /// A generated chapter plus a fresh running summary to resume from next night.

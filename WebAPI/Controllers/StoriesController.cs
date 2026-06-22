@@ -1,4 +1,5 @@
 using Application.Features.Stories.Commands.ActivateSeries;
+using Application.Features.Stories.Commands.Generate;
 using Application.Features.Stories.Commands.GenerateChapter;
 using Application.Features.Stories.Commands.MarkListened;
 using Application.Features.Stories.Commands.NewSeries;
@@ -36,11 +37,16 @@ public class StoriesController : BaseController
     public async Task<IActionResult> SynthesizeStore([FromBody] SynthesizeStoreCommand command)
         => Ok(await Mediator.Send(command));
 
-    /// Home screen state. Returns immediately; generation runs in the background ("preparing" ->
-    /// client polls). Body is optional: { "retry": true } re-tries after a failure.
+    /// Read-only home state for the active series (latest chapter + whether a story can be generated).
     [HttpPost("tonight")]
-    public async Task<IActionResult> Tonight([FromBody] GetTonightStoryCommand? command)
-        => Ok(await Mediator.Send(command ?? new GetTonightStoryCommand()));
+    public async Task<IActionResult> Tonight()
+        => Ok(await Mediator.Send(new GetTonightStoryCommand()));
+
+    /// Explicit "create tonight's story" action (the button). Enqueues generation (1/day); the client
+    /// polls `tonight` until the new chapter appears.
+    [HttpPost("generate")]
+    public async Task<IActionResult> Generate()
+        => Ok(await Mediator.Send(new GenerateStoryCommand()));
 
     /// The child's full story arc (library), newest first. Read-only.
     [HttpGet("library")]

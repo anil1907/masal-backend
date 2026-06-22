@@ -15,6 +15,7 @@ public class UpdateChildCommand : IRequest<UpdatedChildResponse>, ISecuredReques
     public List<string> Fears { get; set; } = [];
     public List<string> Interests { get; set; } = [];
     public string? AgeBand { get; set; }
+    public string? Gender { get; set; }
 
     public string[] Roles => [OperationClaims.AllowAnonymous];
 
@@ -48,6 +49,7 @@ public class UpdateChildCommand : IRequest<UpdatedChildResponse>, ISecuredReques
             child.Fears = request.Fears;
             child.Interests = request.Interests;
             child.AgeBand = request.AgeBand;
+            child.Gender = request.Gender;
 
             await _childRepository.UpdateAsync(child, cancellationToken);
             return _mapper.Map<UpdatedChildResponse>(child);

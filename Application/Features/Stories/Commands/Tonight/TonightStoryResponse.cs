@@ -3,26 +3,27 @@ using Core.Application.Responses;
 
 namespace Application.Features.Stories.Commands.Tonight;
 
-/// What to show on the home screen tonight.
-/// - status "ready"            => `Chapter` is playable now (Available = true).
-/// - status "comeBackTomorrow" => tonight's chapter was already heard; `Chapter` is that last
-///                                chapter (for context) and Available = false. The next one is
-///                                generated on the next day (1 story/day).
-/// - status "freeLimitReached" => free-tier weekly allowance is used up; `Chapter` is the last
-///                                chapter (re-listenable) and Available = false. Prompt the paywall.
+/// Home-screen state for the child's active series. Read-only: generation is an explicit user action
+/// (POST /api/Stories/generate), capped at 1 per day.
+/// - "ready"     => `Chapter` is the latest playable chapter.
+/// - "empty"     => no chapter yet; show the "create story" prompt.
+/// - "preparing" => a generation is running; show the waiting screen and poll.
+/// - "failed"    => last generation failed; the user can generate again.
+/// `CanGenerate` drives the "create story" button; `BlockedReason` explains why it is disabled.
 public class TonightStoryResponse : IResponse
 {
     public const string StatusReady = "ready";
-    public const string StatusComeBackTomorrow = "comeBackTomorrow";
-    public const string StatusFreeLimitReached = "freeLimitReached";
-    /// Generation is running in the background; the client should poll until ready.
+    public const string StatusEmpty = "empty";
     public const string StatusPreparing = "preparing";
-    /// The last background generation failed; client shows an error + manual retry.
     public const string StatusFailed = "failed";
 
-    public string Status { get; set; } = StatusReady;
-    public bool Available { get; set; }
+    // Why generation is unavailable (when CanGenerate is false and not preparing).
+    public const string BlockedToday = "today";          // already generated today's story
+    public const string BlockedFreeLimit = "freeLimit";  // free weekly allowance used up
+
+    public string Status { get; set; } = StatusEmpty;
     public ChapterDto? Chapter { get; set; }
-    /// The active series' name (for the home screen).
+    public bool CanGenerate { get; set; }
+    public string? BlockedReason { get; set; }
     public string? SeriesTitle { get; set; }
 }

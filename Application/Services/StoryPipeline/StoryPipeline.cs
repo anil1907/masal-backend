@@ -78,7 +78,8 @@ public class StoryPipeline : IStoryPipeline
             Interests: child.Interests,
             AgeBand: child.AgeBand,
             ChapterNumber: number,
-            PreviousSummary: previousSummary);
+            PreviousSummary: previousSummary,
+            Gender: child.Gender);
 
         GeneratedChapter generated = await _generator.GenerateAsync(input, cancellationToken);
         SafetyVerdict verdict = await _safetyGate.EvaluateAsync(generated.Text, child.Fears, child.AgeBand, cancellationToken);

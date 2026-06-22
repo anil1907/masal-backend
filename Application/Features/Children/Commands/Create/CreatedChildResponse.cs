@@ -9,4 +9,5 @@ public class CreatedChildResponse : IResponse
     public List<string> Fears { get; set; } = [];
     public List<string> Interests { get; set; } = [];
     public string? AgeBand { get; set; }
+    public string? Gender { get; set; }
 }

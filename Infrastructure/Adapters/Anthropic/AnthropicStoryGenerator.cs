@@ -51,6 +51,10 @@ public class AnthropicStoryGenerator : IStoryGenerator
     {
         var sb = new StringBuilder();
         sb.AppendLine($"Kahramanın adı: {input.HeroName}");
+        if (!string.IsNullOrWhiteSpace(input.Gender))
+            sb.AppendLine($"Cinsiyet: {input.Gender} (uygun zamirleri/temsili buna göre kullan)");
+        if (!string.IsNullOrWhiteSpace(input.AgeBand))
+            sb.AppendLine($"Yaş: {input.AgeBand}");
         sb.AppendLine($"İlgi alanları: {Join(input.Interests, "yok")}");
         sb.AppendLine($"Kaçınılacak korkular: {Join(input.Fears, "belirtilmedi")}");
         sb.AppendLine($"Bölüm numarası: {input.ChapterNumber}");
