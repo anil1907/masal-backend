@@ -1,2 +1,4 @@
 ChildAlreadyExists: "This account already has a hero."
 ChildNotExists: "No hero has been created yet."
+FreeChildLimitReached: "The free plan allows a single hero. Upgrade to Premium for more."
+PremiumChildLimitReached: "You can add up to 3 heroes."

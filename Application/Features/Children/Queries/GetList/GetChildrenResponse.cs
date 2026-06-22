@@ -1,8 +1,13 @@
 using Core.Application.Responses;
 
-namespace Application.Features.Children.Commands.Create;
+namespace Application.Features.Children.Queries.GetList;
 
-public class CreatedChildResponse : IResponse
+public class GetChildrenResponse : IResponse
+{
+    public List<ChildListItem> Children { get; set; } = [];
+}
+
+public class ChildListItem
 {
     public long Id { get; set; }
     public string HeroName { get; set; } = default!;

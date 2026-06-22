@@ -3,8 +3,9 @@ using Domain.Entities.Users;
 
 namespace Domain.Entities.Children;
 
-/// One child ("hero") per parent account in the MVP. Fears are AVOIDED in stories,
-/// interests are woven in. Lists are stored as Postgres text[] (Npgsql native).
+/// A child ("hero"). A parent can have several (free: 1, premium: up to 3). Exactly one is
+/// active at a time - story generation always targets the active child. Fears are AVOIDED in
+/// stories, interests are woven in. Lists are stored as Postgres text[] (Npgsql native).
 public class Child : Entity
 {
     public long UserId { get; set; }
@@ -16,4 +17,6 @@ public class Child : Entity
     public string? AgeBand { get; set; }
     /// "kız" | "erkek" | null. Guides pronouns / how the hero is portrayed.
     public string? Gender { get; set; }
+    /// The currently selected child for this parent. Exactly one true per user.
+    public bool IsActive { get; set; }
 }

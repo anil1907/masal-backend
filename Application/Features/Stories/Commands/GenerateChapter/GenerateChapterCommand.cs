@@ -55,7 +55,7 @@ public class GenerateChapterCommand : IRequest<GenerateChapterResponse>, ISecure
         public async Task<GenerateChapterResponse> Handle(GenerateChapterCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             // Cost guard: every generation is two paid LLM calls - cap per user per rolling 24h.

@@ -52,7 +52,11 @@ public class StoryPipeline : IStoryPipeline
 
     public async Task GenerateNextChapterAsync(long userId, long childId, CancellationToken cancellationToken = default)
     {
-        Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+        // Resolve the EXACT child the job was enqueued for (the user may have switched active
+        // child between enqueue and processing) - fall back to active for legacy jobs.
+        Child? child = childId > 0
+            ? await _childRepository.GetByIdForUserAsync(childId, userId, cancellationToken)
+            : await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
         if (child is null)
             throw new BusinessException("Çocuk profili bulunamadı.");
 

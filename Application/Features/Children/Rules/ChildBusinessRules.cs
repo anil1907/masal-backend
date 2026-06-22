@@ -21,6 +21,15 @@ public class ChildBusinessRules : BaseBusinessRules
             await throwBusinessException(ChildBusinessMessages.ChildAlreadyExists);
     }
 
+    /// Enforce the per-account child cap: free = 1, premium = 3.
+    public async Task UserCanAddChild(int currentCount, bool isPremium)
+    {
+        if (!isPremium && currentCount >= ChildConstants.MaxFreeChildren)
+            await throwBusinessException(ChildBusinessMessages.FreeChildLimitReached);
+        if (isPremium && currentCount >= ChildConstants.MaxPremiumChildren)
+            await throwBusinessException(ChildBusinessMessages.PremiumChildLimitReached);
+    }
+
     public async Task ChildShouldExist(Child? child)
     {
         if (child == null)

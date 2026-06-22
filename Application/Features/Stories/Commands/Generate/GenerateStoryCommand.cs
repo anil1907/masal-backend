@@ -53,7 +53,7 @@ public class GenerateStoryCommand : IRequest<TonightStoryResponse>, ISecuredRequ
         public async Task<TonightStoryResponse> Handle(GenerateStoryCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             StorySeries? active = await _seriesRepository.GetActiveForChildAsync(child!.Id, cancellationToken);

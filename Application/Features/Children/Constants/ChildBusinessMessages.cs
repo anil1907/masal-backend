@@ -7,4 +7,6 @@ public static class ChildBusinessMessages
 
     public const string ChildAlreadyExists = "ChildAlreadyExists";
     public const string ChildNotExists = "ChildNotExists";
+    public const string FreeChildLimitReached = "FreeChildLimitReached";
+    public const string PremiumChildLimitReached = "PremiumChildLimitReached";
 }

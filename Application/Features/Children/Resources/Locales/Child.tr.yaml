@@ -1,2 +1,4 @@
 ChildAlreadyExists: "Bu hesapta zaten bir kahraman var."
 ChildNotExists: "Henüz bir kahraman oluşturulmamış."
+FreeChildLimitReached: "Ücretsiz planda tek kahraman ekleyebilirsin. Daha fazlası için Premium'a geç."
+PremiumChildLimitReached: "En fazla 3 kahraman ekleyebilirsin."

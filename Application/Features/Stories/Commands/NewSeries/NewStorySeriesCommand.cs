@@ -46,7 +46,7 @@ public class NewStorySeriesCommand : IRequest<TonightStoryResponse>, ISecuredReq
         public async Task<TonightStoryResponse> Handle(NewStorySeriesCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             // Don't start a second generation while one is running.

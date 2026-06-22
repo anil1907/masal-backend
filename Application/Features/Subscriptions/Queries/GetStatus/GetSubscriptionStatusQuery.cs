@@ -51,7 +51,7 @@ public class GetSubscriptionStatusQuery : IRequest<GetSubscriptionStatusResponse
 
             // Free tier: remaining = weekly limit minus chapters delivered in the rolling week.
             int deliveredThisWeek = 0;
-            var child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            var child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             if (child is not null)
                 deliveredThisWeek = await _chapterRepository.CountForChildSinceAsync(
                     child.Id, now.AddDays(-7), cancellationToken);

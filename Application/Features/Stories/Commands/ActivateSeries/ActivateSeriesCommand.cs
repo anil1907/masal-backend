@@ -44,7 +44,7 @@ public class ActivateSeriesCommand : IRequest<ActivateSeriesResponse>, ISecuredR
         public async Task<ActivateSeriesResponse> Handle(ActivateSeriesCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             StorySeries? series = await _seriesRepository.GetForChildAsync(request.SeriesId, child!.Id, cancellationToken);

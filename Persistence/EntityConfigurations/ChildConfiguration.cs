@@ -17,12 +17,14 @@ public class ChildConfiguration : IEntityTypeConfiguration<Child>
         builder.Property(c => c.Interests).HasColumnName("Interests").HasColumnType("text[]").IsRequired();
         builder.Property(c => c.AgeBand).HasColumnName("AgeBand");
         builder.Property(c => c.Gender).HasColumnName("Gender");
+        builder.Property(c => c.IsActive).HasColumnName("IsActive").IsRequired();
         builder.Property(c => c.CreatedDate).HasColumnName("CreatedDate").IsRequired();
         builder.Property(c => c.UpdatedDate).HasColumnName("UpdatedDate");
         builder.Property(c => c.DeletedDate).HasColumnName("DeletedDate");
 
         builder.HasOne(c => c.User).WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasIndex(c => c.UserId).IsUnique();   // one child per parent (MVP)
+        // Several children per parent now (free: 1, premium: up to 3); one active at a time.
+        builder.HasIndex(c => new { c.UserId, c.IsActive });
 
         builder.HasQueryFilter(c => !c.DeletedDate.HasValue);
         builder.HasBaseType((string)null!);

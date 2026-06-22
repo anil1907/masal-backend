@@ -48,7 +48,7 @@ public class MarkChapterListenedCommand : IRequest<MarkChapterListenedResponse>,
         public async Task<MarkChapterListenedResponse> Handle(MarkChapterListenedCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             StoryChapter? chapter = await _chapterRepository.GetForChildAsync(request.ChapterId, child!.Id, cancellationToken);

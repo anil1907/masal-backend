@@ -11,6 +11,8 @@ namespace Application.Features.Children.Commands.Update;
 
 public class UpdateChildCommand : IRequest<UpdatedChildResponse>, ISecuredRequest, ILoggableRequest
 {
+    /// Which child to edit. 0 (or omitted) means "the active child" - keeps old single-child clients working.
+    public long Id { get; set; }
     public string HeroName { get; set; } = default!;
     public List<string> Fears { get; set; } = [];
     public List<string> Interests { get; set; } = [];
@@ -42,7 +44,9 @@ public class UpdateChildCommand : IRequest<UpdatedChildResponse>, ISecuredReques
         {
             long userId = _currentUser.UserIdOrThrow();
 
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = request.Id > 0
+                ? await _childRepository.GetByIdForUserAsync(request.Id, userId, cancellationToken)
+                : await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             child!.HeroName = request.HeroName;

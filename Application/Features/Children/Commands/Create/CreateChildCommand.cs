@@ -1,4 +1,3 @@
-using Application.Features;
 using Application.Features.Children.Rules;
 using Application.Services.CurrentUser;
 using Application.Services.Repositories;
@@ -24,17 +23,20 @@ public class CreateChildCommand : IRequest<CreatedChildResponse>, ISecuredReques
     public class CreateChildCommandHandler : IRequestHandler<CreateChildCommand, CreatedChildResponse>
     {
         private readonly IChildRepository _childRepository;
+        private readonly IEntitlementRepository _entitlementRepository;
         private readonly ICurrentUser _currentUser;
         private readonly IMapper _mapper;
         private readonly ChildBusinessRules _childBusinessRules;
 
         public CreateChildCommandHandler(
             IChildRepository childRepository,
+            IEntitlementRepository entitlementRepository,
             ICurrentUser currentUser,
             IMapper mapper,
             ChildBusinessRules childBusinessRules)
         {
             _childRepository = childRepository;
+            _entitlementRepository = entitlementRepository;
             _currentUser = currentUser;
             _mapper = mapper;
             _childBusinessRules = childBusinessRules;
@@ -44,11 +46,16 @@ public class CreateChildCommand : IRequest<CreatedChildResponse>, ISecuredReques
         {
             long userId = _currentUser.UserIdOrThrow();
 
-            Child? existing = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
-            await _childBusinessRules.UserShouldNotAlreadyHaveChild(existing);
+            int currentCount = await _childRepository.CountForUserAsync(userId, cancellationToken);
+            bool isPremium = await _entitlementRepository.GetActiveByUserIdAsync(userId, DateTime.UtcNow, cancellationToken) != null;
+            await _childBusinessRules.UserCanAddChild(currentCount, isPremium);
+
+            // The freshly added child becomes the active hero.
+            await _childRepository.DeactivateAllForUserAsync(userId, cancellationToken);
 
             Child child = _mapper.Map<Child>(request);
             child.UserId = userId;
+            child.IsActive = true;
 
             Child created = await _childRepository.AddAsync(child, cancellationToken);
             return _mapper.Map<CreatedChildResponse>(created);

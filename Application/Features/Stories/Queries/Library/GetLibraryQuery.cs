@@ -46,7 +46,7 @@ public class GetLibraryQuery : IRequest<LibraryResponse>, ISecuredRequest
         public async Task<LibraryResponse> Handle(GetLibraryQuery request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             List<StoryChapter> chapters = await _chapterRepository.GetAllForChildAsync(child!.Id, cancellationToken);

@@ -10,4 +10,5 @@ public class GetMyChildResponse : IResponse
     public List<string> Interests { get; set; } = [];
     public string? AgeBand { get; set; }
     public string? Gender { get; set; }
+    public bool IsActive { get; set; }
 }

@@ -1,5 +1,6 @@
 using Application.Features.Children.Commands.Create;
 using Application.Features.Children.Commands.Update;
+using Application.Features.Children.Queries.GetList;
 using Application.Features.Children.Queries.GetMy;
 using AutoMapper;
 using Domain.Entities.Children;
@@ -14,5 +15,6 @@ public class MappingProfiles : Profile
         CreateMap<Child, CreatedChildResponse>();
         CreateMap<Child, UpdatedChildResponse>();
         CreateMap<Child, GetMyChildResponse>();
+        CreateMap<Child, ChildListItem>();
     }
 }

@@ -45,7 +45,7 @@ public class GetSeriesListQuery : IRequest<SeriesListResponse>, ISecuredRequest
         public async Task<SeriesListResponse> Handle(GetSeriesListQuery request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetByUserIdAsync(userId, cancellationToken);
+            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             List<StorySeries> series = await _seriesRepository.GetAllForChildAsync(child!.Id, cancellationToken);

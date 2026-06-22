@@ -1,2 +1,4 @@
 ChildAlreadyExists: "В этом аккаунте уже есть герой."
 ChildNotExists: "Герой ещё не создан."
+FreeChildLimitReached: "На бесплатном плане можно добавить только одного героя. Оформите Premium."
+PremiumChildLimitReached: "Можно добавить не более 3 героев."
