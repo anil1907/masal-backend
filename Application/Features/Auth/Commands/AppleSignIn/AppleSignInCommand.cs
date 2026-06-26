@@ -1,12 +1,12 @@
+using Application.Persistence;
 using Application.Services.AppleAuth;
-using Application.Services.AuthService;
-using Application.Services.Repositories;
 using Application.Services.Token;
 using Core.Security.Hashing;
 using Core.Security.JWT;
 using Domain.Entities.Auth;
 using Domain.Entities.Users;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Application.Features.Auth.Commands.AppleSignIn;
@@ -24,22 +24,19 @@ public class AppleSignInCommand : IRequest<AppleSignInResponse>
     public class AppleSignInCommandHandler : IRequestHandler<AppleSignInCommand, AppleSignInResponse>
     {
         private readonly IAppleAuthVerifier _appleVerifier;
-        private readonly IUserRepository _userRepository;
-        private readonly IRefreshTokenRepository _refreshTokenRepository;
-        private readonly IAuthService _authService;
+        private readonly IApplicationDbContext _db;
+        private readonly ITokenHelper _tokenHelper;
         private readonly TokenOptions _tokenOptions;
 
         public AppleSignInCommandHandler(
             IAppleAuthVerifier appleVerifier,
-            IUserRepository userRepository,
-            IRefreshTokenRepository refreshTokenRepository,
-            IAuthService authService,
+            IApplicationDbContext db,
+            ITokenHelper tokenHelper,
             IOptions<TokenOptions> tokenOptions)
         {
             _appleVerifier = appleVerifier;
-            _userRepository = userRepository;
-            _refreshTokenRepository = refreshTokenRepository;
-            _authService = authService;
+            _db = db;
+            _tokenHelper = tokenHelper;
             _tokenOptions = tokenOptions.Value;
         }
 
@@ -49,22 +46,30 @@ public class AppleSignInCommand : IRequest<AppleSignInResponse>
 
             AppleIdentity identity = await _appleVerifier.VerifyAsync(request.IdentityToken, cancellationToken);
 
-            User? user = await _userRepository.GetByAppleUserId(identity.UserId);
+            User? user = await _db.Users
+                .FirstOrDefaultAsync(u => u.AppleUserId == identity.UserId, cancellationToken);
             bool isNewUser = user is null;
             if (isNewUser)
                 user = await CreateAppleUser(identity, request.Email, cancellationToken);
 
-            AccessToken accessToken = await _authService.CreateAccessToken(user!);
+            // Build the access token (operation claims + JWT) inline.
+            List<OperationClaim> operationClaims = await _db.UserOperationClaims
+                .AsNoTracking()
+                .Where(p => p.UserId == user!.Id)
+                .Select(p => new OperationClaim { Id = p.OperationClaimId, Name = p.OperationClaim.Name })
+                .ToListAsync(cancellationToken);
+            AccessToken accessToken = _tokenHelper.CreateToken(user!, operationClaims);
 
             // Long-lived, rotated session: store only the hash, hand the raw value to the client once.
             (string rawRefresh, string refreshHash) = RefreshTokenHelper.Generate();
             DateTime refreshExpiresAt = now.AddDays(_tokenOptions.RefreshTokenExpirationDays);
-            await _refreshTokenRepository.AddAsync(new RefreshToken
+            _db.RefreshTokens.Add(new RefreshToken
             {
                 UserId = user!.Id,
                 TokenHash = refreshHash,
                 ExpiresAt = refreshExpiresAt
-            }, cancellationToken);
+            });
+            await _db.SaveChangesAsync(cancellationToken);
 
             return new AppleSignInResponse
             {
@@ -89,7 +94,9 @@ public class AppleSignInCommand : IRequest<AppleSignInResponse>
                 PasswordHash = hash,
                 PasswordSalt = salt
             };
-            return await _userRepository.AddAsync(user, cancellationToken);
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync(cancellationToken);
+            return user;
         }
     }
 }

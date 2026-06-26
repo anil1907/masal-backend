@@ -1,10 +1,11 @@
 using Application.Features.Subscriptions.Constants;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Pipelines.Logging;
 using Domain.Entities.Subscriptions;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Subscriptions.Queries.GetStatus;
 
@@ -14,20 +15,14 @@ public class GetSubscriptionStatusQuery : IRequest<GetSubscriptionStatusResponse
 
     public class GetSubscriptionStatusQueryHandler : IRequestHandler<GetSubscriptionStatusQuery, GetSubscriptionStatusResponse>
     {
-        private readonly IEntitlementRepository _entitlementRepository;
-        private readonly IChildRepository _childRepository;
-        private readonly IStoryChapterRepository _chapterRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
 
         public GetSubscriptionStatusQueryHandler(
-            IEntitlementRepository entitlementRepository,
-            IChildRepository childRepository,
-            IStoryChapterRepository chapterRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser)
         {
-            _entitlementRepository = entitlementRepository;
-            _childRepository = childRepository;
-            _chapterRepository = chapterRepository;
+            _db = db;
             _currentUser = currentUser;
         }
 
@@ -36,7 +31,11 @@ public class GetSubscriptionStatusQuery : IRequest<GetSubscriptionStatusResponse
             long userId = _currentUser.UserIdOrThrow();
             DateTime now = DateTime.UtcNow;
 
-            Entitlement? active = await _entitlementRepository.GetActiveByUserIdAsync(userId, now, cancellationToken);
+            Entitlement? active = await _db.Entitlements
+                .AsNoTracking()
+                .Where(e => e.UserId == userId && e.IsActive && (e.CurrentPeriodEnd == null || e.CurrentPeriodEnd > now))
+                .OrderByDescending(e => e.CurrentPeriodEnd)
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (active != null)
             {
@@ -51,10 +50,21 @@ public class GetSubscriptionStatusQuery : IRequest<GetSubscriptionStatusResponse
 
             // Free tier: remaining = weekly limit minus chapters delivered in the rolling week.
             int deliveredThisWeek = 0;
-            var child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            // Prefer the flagged-active child; fall back to the newest one so legacy single-child
+            // accounts (created before IsActive existed) still resolve a hero.
+            var child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             if (child is not null)
-                deliveredThisWeek = await _chapterRepository.CountForChildSinceAsync(
-                    child.Id, now.AddDays(-7), cancellationToken);
+            {
+                DateTime sinceUtc = now.AddDays(-7);
+                deliveredThisWeek = await _db.StoryChapters
+                    .AsNoTracking()
+                    .CountAsync(c => c.ChildId == child.Id && c.CreatedDate >= sinceUtc, cancellationToken);
+            }
 
             int remaining = Math.Max(0, SubscriptionConstants.WeeklyFreeStories - deliveredThisWeek);
             return new GetSubscriptionStatusResponse

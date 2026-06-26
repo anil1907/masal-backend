@@ -1,13 +1,14 @@
 using Application.Features.Children.Rules;
 using Application.Features.Stories.Rules;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Application.Services.StoryGeneration;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Pipelines.Logging;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Application.Features.Stories.Commands.GenerateChapter;
@@ -23,8 +24,7 @@ public class GenerateChapterCommand : IRequest<GenerateChapterResponse>, ISecure
 
     public class GenerateChapterCommandHandler : IRequestHandler<GenerateChapterCommand, GenerateChapterResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IStoryGenerationLogRepository _generationLogRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
         private readonly IStoryGenerator _generator;
         private readonly IStorySafetyGate _safetyGate;
@@ -33,8 +33,7 @@ public class GenerateChapterCommand : IRequest<GenerateChapterResponse>, ISecure
         private readonly StorySettings _storySettings;
 
         public GenerateChapterCommandHandler(
-            IChildRepository childRepository,
-            IStoryGenerationLogRepository generationLogRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser,
             IStoryGenerator generator,
             IStorySafetyGate safetyGate,
@@ -42,8 +41,7 @@ public class GenerateChapterCommand : IRequest<GenerateChapterResponse>, ISecure
             StoryBusinessRules storyBusinessRules,
             IOptions<StorySettings> storySettings)
         {
-            _childRepository = childRepository;
-            _generationLogRepository = generationLogRepository;
+            _db = db;
             _currentUser = currentUser;
             _generator = generator;
             _safetyGate = safetyGate;
@@ -55,12 +53,19 @@ public class GenerateChapterCommand : IRequest<GenerateChapterResponse>, ISecure
         public async Task<GenerateChapterResponse> Handle(GenerateChapterCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            Child? child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             // Cost guard: every generation is two paid LLM calls - cap per user per rolling 24h.
-            int generatedToday = await _generationLogRepository.CountForUserSinceAsync(
-                userId, DateTime.UtcNow.AddDays(-1), cancellationToken);
+            DateTime sinceUtc = DateTime.UtcNow.AddDays(-1);
+            int generatedToday = await _db.StoryGenerationLogs
+                .AsNoTracking()
+                .CountAsync(l => l.UserId == userId && l.CreatedDate >= sinceUtc, cancellationToken);
             await _storyBusinessRules.DailyGenerationLimitShouldNotBeExceeded(
                 generatedToday, _storySettings.DailyGenerationLimit);
 
@@ -76,7 +81,8 @@ public class GenerateChapterCommand : IRequest<GenerateChapterResponse>, ISecure
             SafetyVerdict verdict = await _safetyGate.EvaluateAsync(chapter.Text, child.Fears, child.AgeBand, cancellationToken);
 
             // Count against the quota regardless of the safety verdict - the cost was incurred.
-            await _generationLogRepository.AddAsync(new StoryGenerationLog { UserId = userId }, cancellationToken);
+            _db.StoryGenerationLogs.Add(new StoryGenerationLog { UserId = userId });
+            await _db.SaveChangesAsync(cancellationToken);
 
             return new GenerateChapterResponse
             {

@@ -1,12 +1,12 @@
 using Application.Features.Children.Queries.GetList;
 using Application.Features.Children.Rules;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
-using AutoMapper;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Pipelines.Logging;
 using Domain.Entities.Children;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Children.Commands.Activate;
 
@@ -18,20 +18,17 @@ public class ActivateChildCommand : IRequest<ChildListItem>, ISecuredRequest, IL
 
     public class ActivateChildCommandHandler : IRequestHandler<ActivateChildCommand, ChildListItem>
     {
-        private readonly IChildRepository _childRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
-        private readonly IMapper _mapper;
         private readonly ChildBusinessRules _childBusinessRules;
 
         public ActivateChildCommandHandler(
-            IChildRepository childRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser,
-            IMapper mapper,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
+            _db = db;
             _currentUser = currentUser;
-            _mapper = mapper;
             _childBusinessRules = childBusinessRules;
         }
 
@@ -39,14 +36,27 @@ public class ActivateChildCommand : IRequest<ChildListItem>, ISecuredRequest, IL
         {
             long userId = _currentUser.UserIdOrThrow();
 
-            Child? child = await _childRepository.GetByIdForUserAsync(request.Id, userId, cancellationToken);
+            Child? child = await _db.Children
+                .FirstOrDefaultAsync(c => c.Id == request.Id && c.UserId == userId, cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
-            await _childRepository.DeactivateAllForUserAsync(userId, cancellationToken);
+            await _db.Children
+                .Where(c => c.UserId == userId && c.IsActive)
+                .ExecuteUpdateAsync(set => set.SetProperty(c => c.IsActive, false), cancellationToken);
             child!.IsActive = true;
-            await _childRepository.UpdateAsync(child, cancellationToken);
+            _db.Children.Update(child);
+            await _db.SaveChangesAsync(cancellationToken);
 
-            return _mapper.Map<ChildListItem>(child);
+            return new ChildListItem
+            {
+                Id = child.Id,
+                HeroName = child.HeroName,
+                Fears = child.Fears,
+                Interests = child.Interests,
+                AgeBand = child.AgeBand,
+                Gender = child.Gender,
+                IsActive = child.IsActive
+            };
         }
     }
 }

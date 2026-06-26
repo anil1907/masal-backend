@@ -1,11 +1,11 @@
 using Application.Features.Children.Rules;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
-using AutoMapper;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Pipelines.Logging;
 using Domain.Entities.Children;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Children.Commands.Create;
 
@@ -22,23 +22,17 @@ public class CreateChildCommand : IRequest<CreatedChildResponse>, ISecuredReques
 
     public class CreateChildCommandHandler : IRequestHandler<CreateChildCommand, CreatedChildResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IEntitlementRepository _entitlementRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
-        private readonly IMapper _mapper;
         private readonly ChildBusinessRules _childBusinessRules;
 
         public CreateChildCommandHandler(
-            IChildRepository childRepository,
-            IEntitlementRepository entitlementRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser,
-            IMapper mapper,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
-            _entitlementRepository = entitlementRepository;
+            _db = db;
             _currentUser = currentUser;
-            _mapper = mapper;
             _childBusinessRules = childBusinessRules;
         }
 
@@ -46,19 +40,44 @@ public class CreateChildCommand : IRequest<CreatedChildResponse>, ISecuredReques
         {
             long userId = _currentUser.UserIdOrThrow();
 
-            int currentCount = await _childRepository.CountForUserAsync(userId, cancellationToken);
-            bool isPremium = await _entitlementRepository.GetActiveByUserIdAsync(userId, DateTime.UtcNow, cancellationToken) != null;
+            int currentCount = await _db.Children.CountAsync(c => c.UserId == userId, cancellationToken);
+
+            DateTime nowUtc = DateTime.UtcNow;
+            bool isPremium = await _db.Entitlements
+                .AsNoTracking()
+                .Where(e => e.UserId == userId && e.IsActive && (e.CurrentPeriodEnd == null || e.CurrentPeriodEnd > nowUtc))
+                .OrderByDescending(e => e.CurrentPeriodEnd)
+                .FirstOrDefaultAsync(cancellationToken) != null;
             await _childBusinessRules.UserCanAddChild(currentCount, isPremium);
 
             // The freshly added child becomes the active hero.
-            await _childRepository.DeactivateAllForUserAsync(userId, cancellationToken);
+            await _db.Children
+                .Where(c => c.UserId == userId && c.IsActive)
+                .ExecuteUpdateAsync(set => set.SetProperty(c => c.IsActive, false), cancellationToken);
 
-            Child child = _mapper.Map<Child>(request);
-            child.UserId = userId;
-            child.IsActive = true;
+            Child child = new()
+            {
+                HeroName = request.HeroName,
+                Fears = request.Fears,
+                Interests = request.Interests,
+                AgeBand = request.AgeBand,
+                Gender = request.Gender,
+                UserId = userId,
+                IsActive = true
+            };
 
-            Child created = await _childRepository.AddAsync(child, cancellationToken);
-            return _mapper.Map<CreatedChildResponse>(created);
+            _db.Children.Add(child);
+            await _db.SaveChangesAsync(cancellationToken);
+            return new CreatedChildResponse
+            {
+                Id = child.Id,
+                HeroName = child.HeroName,
+                Fears = child.Fears,
+                Interests = child.Interests,
+                AgeBand = child.AgeBand,
+                Gender = child.Gender,
+                IsActive = child.IsActive
+            };
         }
     }
 }

@@ -1,9 +1,7 @@
 using System.Reflection;
 using Application.Features.Auth.Rules;
-using Application.Services.AuthService;
 using Application.Services.AuthorizationService;
 using Application.Services.Token;
-using Application.Services.UserService;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Pipelines.Logging;
 using Core.Application.Pipelines.Mobile;
@@ -27,7 +25,6 @@ public static class ApplicationServiceRegistration
         SeqLogConfiguration seqLogConfiguration
     )
     {
-        services.AddAutoMapper(Assembly.GetExecutingAssembly());
         services.AddMediatR(configuration =>
         {
             configuration.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
@@ -46,8 +43,6 @@ public static class ApplicationServiceRegistration
         services.AddScoped<Application.Services.StoryPipeline.IStoryPipeline, Application.Services.StoryPipeline.StoryPipeline>();
         services.AddScoped<Application.Services.StoryPipeline.StoryGate>();
         services.AddScoped<ITokenHelper, TokenHelper>();
-        services.AddScoped<IAuthService, AuthManager>();
-        services.AddScoped<IUserService, UserManager>();
         services.AddScoped<IUserAuthorizationService, UserAuthorizationService>();
 
         services.AddYamlResourceLocalization();

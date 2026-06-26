@@ -1,12 +1,13 @@
 using Application.Features.Subscriptions.Constants;
 using Application.Features.Subscriptions.Queries.GetStatus;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Application.Services.Store;
 using Core.Application.Pipelines.Authorization;
 using Core.CrossCuttingConcerns.Exception.Types;
 using Domain.Entities.Subscriptions;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Subscriptions.Commands.Activate;
 
@@ -23,16 +24,16 @@ public class ActivateSubscriptionCommand : IRequest<GetSubscriptionStatusRespons
 
     public class ActivateSubscriptionCommandHandler : IRequestHandler<ActivateSubscriptionCommand, GetSubscriptionStatusResponse>
     {
-        private readonly IEntitlementRepository _entitlementRepository;
+        private readonly IApplicationDbContext _db;
         private readonly IStoreVerifier _storeVerifier;
         private readonly ICurrentUser _currentUser;
 
         public ActivateSubscriptionCommandHandler(
-            IEntitlementRepository entitlementRepository,
+            IApplicationDbContext db,
             IStoreVerifier storeVerifier,
             ICurrentUser currentUser)
         {
-            _entitlementRepository = entitlementRepository;
+            _db = db;
             _storeVerifier = storeVerifier;
             _currentUser = currentUser;
         }
@@ -46,7 +47,10 @@ public class ActivateSubscriptionCommand : IRequest<GetSubscriptionStatusRespons
             if (!verdict.Valid)
                 throw new BusinessException("Satın alma doğrulanamadı.");
 
-            Entitlement? entitlement = await _entitlementRepository.GetByUserIdAsync(userId, cancellationToken);
+            Entitlement? entitlement = await _db.Entitlements
+                .Where(e => e.UserId == userId)
+                .OrderByDescending(e => e.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             if (entitlement is null)
             {
                 entitlement = new Entitlement
@@ -57,7 +61,8 @@ public class ActivateSubscriptionCommand : IRequest<GetSubscriptionStatusRespons
                     CurrentPeriodEnd = verdict.ExpiresAtUtc,
                     IsActive = true
                 };
-                await _entitlementRepository.AddAsync(entitlement, cancellationToken);
+                _db.Entitlements.Add(entitlement);
+                await _db.SaveChangesAsync(cancellationToken);
             }
             else
             {
@@ -65,7 +70,8 @@ public class ActivateSubscriptionCommand : IRequest<GetSubscriptionStatusRespons
                 entitlement.ProductId = verdict.ProductId;
                 entitlement.CurrentPeriodEnd = verdict.ExpiresAtUtc;
                 entitlement.IsActive = true;
-                await _entitlementRepository.UpdateAsync(entitlement, cancellationToken);
+                _db.Entitlements.Update(entitlement);
+                await _db.SaveChangesAsync(cancellationToken);
             }
 
             return new GetSubscriptionStatusResponse

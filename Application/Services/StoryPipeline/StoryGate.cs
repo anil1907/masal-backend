@@ -1,5 +1,6 @@
 using Application.Features.Subscriptions.Constants;
-using Application.Services.Repositories;
+using Application.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services.StoryPipeline;
 
@@ -13,28 +14,33 @@ public class StoryGate
     public const string ReasonToday = "today";
     public const string ReasonFreeLimit = "freeLimit";
 
-    private readonly IStoryChapterRepository _chapterRepository;
-    private readonly IEntitlementRepository _entitlementRepository;
+    private readonly IApplicationDbContext _db;
 
-    public StoryGate(IStoryChapterRepository chapterRepository, IEntitlementRepository entitlementRepository)
+    public StoryGate(IApplicationDbContext db)
     {
-        _chapterRepository = chapterRepository;
-        _entitlementRepository = entitlementRepository;
+        _db = db;
     }
 
     public async Task<GateResult> EvaluateAsync(long userId, long childId, CancellationToken cancellationToken = default)
     {
-        int generatedToday = await _chapterRepository.CountForChildSinceAsync(
-            childId, DateTime.UtcNow.Date, cancellationToken);
+        int generatedToday = await _db.StoryChapters
+            .AsNoTracking()
+            .CountAsync(c => c.ChildId == childId && c.CreatedDate >= DateTime.UtcNow.Date, cancellationToken);
         if (generatedToday > 0)
             return new GateResult(false, ReasonToday);
 
-        bool premium = await _entitlementRepository.GetActiveByUserIdAsync(userId, DateTime.UtcNow, cancellationToken) is not null;
+        DateTime nowUtc = DateTime.UtcNow;
+        bool premium = await _db.Entitlements
+            .AsNoTracking()
+            .Where(e => e.UserId == userId && e.IsActive && (e.CurrentPeriodEnd == null || e.CurrentPeriodEnd > nowUtc))
+            .OrderByDescending(e => e.CurrentPeriodEnd)
+            .FirstOrDefaultAsync(cancellationToken) is not null;
         if (premium)
             return new GateResult(true, null);
 
-        int thisWeek = await _chapterRepository.CountForChildSinceAsync(
-            childId, DateTime.UtcNow.AddDays(-7), cancellationToken);
+        int thisWeek = await _db.StoryChapters
+            .AsNoTracking()
+            .CountAsync(c => c.ChildId == childId && c.CreatedDate >= DateTime.UtcNow.AddDays(-7), cancellationToken);
         return thisWeek < SubscriptionConstants.WeeklyFreeStories
             ? new GateResult(true, null)
             : new GateResult(false, ReasonFreeLimit);

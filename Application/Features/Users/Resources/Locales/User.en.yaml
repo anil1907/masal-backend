@@ -1,7 +1,0 @@
-UserNotExists: "User not found."
-UserAlreadyExists: "User already exists."
-UsernameAlreadyExists: "This username is already in use."
-EmailAlreadyExists: "This email address is already in use."
-InvalidPassword: "Invalid password."
-UserCannotBeDeleted: "This user cannot be deleted."
-UserDashboardRetrieved: "User dashboard data retrieved successfully."

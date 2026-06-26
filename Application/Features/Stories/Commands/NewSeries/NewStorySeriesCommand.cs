@@ -1,12 +1,13 @@
 using Application.Features.Children.Rules;
 using Application.Features.Stories.Commands.Tonight;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Application.Services.StoryPipeline;
 using Core.Application.Pipelines.Authorization;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Stories.Commands.NewSeries;
 
@@ -20,23 +21,20 @@ public class NewStorySeriesCommand : IRequest<TonightStoryResponse>, ISecuredReq
 
     public class NewStorySeriesCommandHandler : IRequestHandler<NewStorySeriesCommand, TonightStoryResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IStorySeriesRepository _seriesRepository;
+        private readonly IApplicationDbContext _db;
         private readonly IStoryGenerationQueue _queue;
         private readonly StoryGate _gate;
         private readonly ICurrentUser _currentUser;
         private readonly ChildBusinessRules _childBusinessRules;
 
         public NewStorySeriesCommandHandler(
-            IChildRepository childRepository,
-            IStorySeriesRepository seriesRepository,
+            IApplicationDbContext db,
             IStoryGenerationQueue queue,
             StoryGate gate,
             ICurrentUser currentUser,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
-            _seriesRepository = seriesRepository;
+            _db = db;
             _queue = queue;
             _gate = gate;
             _currentUser = currentUser;
@@ -46,7 +44,12 @@ public class NewStorySeriesCommand : IRequest<TonightStoryResponse>, ISecuredReq
         public async Task<TonightStoryResponse> Handle(NewStorySeriesCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            Child? child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             // Don't start a second generation while one is running.
@@ -59,9 +62,12 @@ public class NewStorySeriesCommand : IRequest<TonightStoryResponse>, ISecuredReq
                 return new() { Status = TonightStoryResponse.StatusEmpty, CanGenerate = false, BlockedReason = gate.Reason };
 
             _queue.ClearFailure(child.Id);
-            await _seriesRepository.DeactivateAllForChildAsync(child.Id, cancellationToken);
-            StorySeries created = await _seriesRepository.AddAsync(
-                new StorySeries { ChildId = child.Id, Title = "Yeni masal", IsActive = true }, cancellationToken);
+            await _db.StorySeries
+                .Where(s => s.ChildId == child.Id && s.IsActive)
+                .ExecuteUpdateAsync(set => set.SetProperty(s => s.IsActive, false), cancellationToken);
+            StorySeries created = new StorySeries { ChildId = child.Id, Title = "Yeni masal", IsActive = true };
+            _db.StorySeries.Add(created);
+            await _db.SaveChangesAsync(cancellationToken);
 
             _queue.TryEnqueue(new StoryGenerationJob(userId, child.Id));
             return new() { Status = TonightStoryResponse.StatusPreparing, CanGenerate = false, SeriesTitle = created.Title };

@@ -1,25 +1,23 @@
 using Application.Features;
-using Application.Services.Repositories;
+using Application.Persistence;
 using Core.Application.Pipelines.Authorization;
 using Core.Security.Constants;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Services.AuthorizationService;
 
 public class UserAuthorizationService : IUserAuthorizationService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IUserOperationClaimRepository _userOperationClaimRepository;
-    private readonly IUserRepository _userRepository;
+    private readonly IApplicationDbContext _db;
 
     public UserAuthorizationService(
         IHttpContextAccessor httpContextAccessor,
-        IUserOperationClaimRepository userOperationClaimRepository,
-        IUserRepository userRepository)
+        IApplicationDbContext db)
     {
         _httpContextAccessor = httpContextAccessor;
-        _userOperationClaimRepository = userOperationClaimRepository;
-        _userRepository = userRepository;
+        _db = db;
     }
 
     public async Task<ICollection<string>> GetUserOperationClaimsAsync(string userId)
@@ -29,11 +27,14 @@ public class UserAuthorizationService : IUserAuthorizationService
 
         if (long.TryParse(userId, out long userIdLong))
         {
-            var user = await _userRepository.GetAsync(u => u.Id == userIdLong);
-            if (user != null)
+            bool userExists = await _db.Users.AsNoTracking().AnyAsync(u => u.Id == userIdLong);
+            if (userExists)
             {
-                var claims = await _userOperationClaimRepository.GetOperationClaimsByUserIdAsync(userIdLong);
-                return claims.Select(c => c.Name).ToList();
+                return await _db.UserOperationClaims
+                    .AsNoTracking()
+                    .Where(p => p.UserId == userIdLong)
+                    .Select(p => p.OperationClaim.Name)
+                    .ToListAsync();
             }
         }
 

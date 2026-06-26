@@ -1,12 +1,13 @@
 using Application.Features.Children.Rules;
 using Application.Features.Stories.Rules;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Responses;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Stories.Commands.MarkListened;
 
@@ -25,21 +26,18 @@ public class MarkChapterListenedCommand : IRequest<MarkChapterListenedResponse>,
 
     public class MarkChapterListenedCommandHandler : IRequestHandler<MarkChapterListenedCommand, MarkChapterListenedResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IStoryChapterRepository _chapterRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
         private readonly ChildBusinessRules _childBusinessRules;
         private readonly StoryBusinessRules _storyBusinessRules;
 
         public MarkChapterListenedCommandHandler(
-            IChildRepository childRepository,
-            IStoryChapterRepository chapterRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser,
             ChildBusinessRules childBusinessRules,
             StoryBusinessRules storyBusinessRules)
         {
-            _childRepository = childRepository;
-            _chapterRepository = chapterRepository;
+            _db = db;
             _currentUser = currentUser;
             _childBusinessRules = childBusinessRules;
             _storyBusinessRules = storyBusinessRules;
@@ -48,16 +46,23 @@ public class MarkChapterListenedCommand : IRequest<MarkChapterListenedResponse>,
         public async Task<MarkChapterListenedResponse> Handle(MarkChapterListenedCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            Child? child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
-            StoryChapter? chapter = await _chapterRepository.GetForChildAsync(request.ChapterId, child!.Id, cancellationToken);
+            StoryChapter? chapter = await _db.StoryChapters
+                .FirstOrDefaultAsync(c => c.Id == request.ChapterId && c.ChildId == child!.Id, cancellationToken);
             await _storyBusinessRules.ChapterShouldExist(chapter);
 
             if (chapter.ListenedDate is null)
             {
                 chapter.ListenedDate = DateTime.UtcNow;
-                await _chapterRepository.UpdateAsync(chapter, cancellationToken);
+                _db.StoryChapters.Update(chapter);
+                await _db.SaveChangesAsync(cancellationToken);
             }
 
             return new MarkChapterListenedResponse { Listened = true };

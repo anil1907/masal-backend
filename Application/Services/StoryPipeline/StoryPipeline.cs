@@ -1,11 +1,12 @@
 using Application.Features.Stories.Rules;
+using Application.Persistence;
 using Application.Services.AudioStorage;
-using Application.Services.Repositories;
 using Application.Services.StoryGeneration;
 using Application.Services.Tts;
 using Core.CrossCuttingConcerns.Exception.Types;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Application.Services.StoryPipeline;
@@ -15,10 +16,7 @@ public class StoryPipeline : IStoryPipeline
     // Google TTS returns 64 kbps CBR MP3; bytes*8/bitrate is a good length estimate.
     private const int TtsBitrate = 64_000;
 
-    private readonly IChildRepository _childRepository;
-    private readonly IStoryChapterRepository _chapterRepository;
-    private readonly IStorySeriesRepository _seriesRepository;
-    private readonly IStoryGenerationLogRepository _generationLogRepository;
+    private readonly IApplicationDbContext _db;
     private readonly IStoryGenerator _generator;
     private readonly IStorySafetyGate _safetyGate;
     private readonly ITtsSynthesizer _tts;
@@ -27,10 +25,7 @@ public class StoryPipeline : IStoryPipeline
     private readonly StorySettings _storySettings;
 
     public StoryPipeline(
-        IChildRepository childRepository,
-        IStoryChapterRepository chapterRepository,
-        IStorySeriesRepository seriesRepository,
-        IStoryGenerationLogRepository generationLogRepository,
+        IApplicationDbContext db,
         IStoryGenerator generator,
         IStorySafetyGate safetyGate,
         ITtsSynthesizer tts,
@@ -38,10 +33,7 @@ public class StoryPipeline : IStoryPipeline
         StoryBusinessRules storyBusinessRules,
         IOptions<StorySettings> storySettings)
     {
-        _childRepository = childRepository;
-        _chapterRepository = chapterRepository;
-        _seriesRepository = seriesRepository;
-        _generationLogRepository = generationLogRepository;
+        _db = db;
         _generator = generator;
         _safetyGate = safetyGate;
         _tts = tts;
@@ -55,24 +47,41 @@ public class StoryPipeline : IStoryPipeline
         // Resolve the EXACT child the job was enqueued for (the user may have switched active
         // child between enqueue and processing) - fall back to active for legacy jobs.
         Child? child = childId > 0
-            ? await _childRepository.GetByIdForUserAsync(childId, userId, cancellationToken)
-            : await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            ? await _db.Children.FirstOrDefaultAsync(c => c.Id == childId && c.UserId == userId, cancellationToken)
+            : await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
         if (child is null)
             throw new BusinessException("Çocuk profili bulunamadı.");
 
         // Continue the child's ACTIVE series (create one if somehow missing).
-        StorySeries? series = await _seriesRepository.GetActiveForChildAsync(child.Id, cancellationToken);
+        StorySeries? series = await _db.StorySeries
+            .AsNoTracking()
+            .Where(s => s.ChildId == child.Id && s.IsActive)
+            .OrderByDescending(s => s.Id)
+            .FirstOrDefaultAsync(cancellationToken);
         if (series is null)
-            series = await _seriesRepository.AddAsync(
-                new StorySeries { ChildId = child.Id, Title = "Yeni masal", IsActive = true }, cancellationToken);
+        {
+            series = new StorySeries { ChildId = child.Id, Title = "Yeni masal", IsActive = true };
+            _db.StorySeries.Add(series);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
 
-        StoryChapter? latest = await _chapterRepository.GetLatestForSeriesAsync(series.Id, cancellationToken);
+        StoryChapter? latest = await _db.StoryChapters
+            .AsNoTracking()
+            .Where(c => c.SeriesId == series.Id)
+            .OrderByDescending(c => c.Number)
+            .FirstOrDefaultAsync(cancellationToken);
         int number = latest is null ? 1 : latest.Number + 1;
         string? previousSummary = latest?.Summary;
 
         // Backstop cost guard (the daily/listened + subscription gating already limits this).
-        int generatedToday = await _generationLogRepository.CountForUserSinceAsync(
-            userId, DateTime.UtcNow.AddDays(-1), cancellationToken);
+        int generatedToday = await _db.StoryGenerationLogs
+            .AsNoTracking()
+            .CountAsync(l => l.UserId == userId && l.CreatedDate >= DateTime.UtcNow.AddDays(-1), cancellationToken);
         await _storyBusinessRules.DailyGenerationLimitShouldNotBeExceeded(
             generatedToday, _storySettings.DailyGenerationLimit);
 
@@ -89,7 +98,8 @@ public class StoryPipeline : IStoryPipeline
         SafetyVerdict verdict = await _safetyGate.EvaluateAsync(generated.Text, child.Fears, child.AgeBand, cancellationToken);
 
         // The LLM cost was incurred regardless of the verdict - count it now.
-        await _generationLogRepository.AddAsync(new StoryGenerationLog { UserId = userId }, cancellationToken);
+        _db.StoryGenerationLogs.Add(new StoryGenerationLog { UserId = userId });
+        await _db.SaveChangesAsync(cancellationToken);
 
         // Mandatory safety gate: never synthesize/store a chapter that didn't pass.
         await _storyBusinessRules.StoryShouldPassSafety(verdict.Passed);
@@ -109,16 +119,19 @@ public class StoryPipeline : IStoryPipeline
             AudioObjectKey = objectKey,
             DurationSeconds = (int)(mp3.Length * 8L / TtsBitrate)
         };
-        await _chapterRepository.AddAsync(chapter, cancellationToken);
+        _db.StoryChapters.Add(chapter);
+        await _db.SaveChangesAsync(cancellationToken);
 
         // First chapter of a series names the series (from the generated title).
         if (number == 1)
         {
-            StorySeries? tracked = await _seriesRepository.GetForChildAsync(series.Id, child.Id, cancellationToken);
+            StorySeries? tracked = await _db.StorySeries
+                .FirstOrDefaultAsync(s => s.Id == series.Id && s.ChildId == child.Id, cancellationToken);
             if (tracked is not null)
             {
                 tracked.Title = DeriveSeriesTitle(generated.Title);
-                await _seriesRepository.UpdateAsync(tracked, cancellationToken);
+                _db.StorySeries.Update(tracked);
+                await _db.SaveChangesAsync(cancellationToken);
             }
         }
     }

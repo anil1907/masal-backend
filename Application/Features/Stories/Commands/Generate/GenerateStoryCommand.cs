@@ -1,14 +1,15 @@
 using Application.Features.Children.Rules;
 using Application.Features.Stories.Commands.Tonight;
 using Application.Features.Stories.Dtos;
+using Application.Persistence;
 using Application.Services.AudioStorage;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Application.Services.StoryPipeline;
 using Core.Application.Pipelines.Authorization;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Stories.Commands.Generate;
 
@@ -21,9 +22,7 @@ public class GenerateStoryCommand : IRequest<TonightStoryResponse>, ISecuredRequ
 
     public class GenerateStoryCommandHandler : IRequestHandler<GenerateStoryCommand, TonightStoryResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IStoryChapterRepository _chapterRepository;
-        private readonly IStorySeriesRepository _seriesRepository;
+        private readonly IApplicationDbContext _db;
         private readonly IStoryGenerationQueue _queue;
         private readonly StoryGate _gate;
         private readonly ICurrentUser _currentUser;
@@ -31,18 +30,14 @@ public class GenerateStoryCommand : IRequest<TonightStoryResponse>, ISecuredRequ
         private readonly ChildBusinessRules _childBusinessRules;
 
         public GenerateStoryCommandHandler(
-            IChildRepository childRepository,
-            IStoryChapterRepository chapterRepository,
-            IStorySeriesRepository seriesRepository,
+            IApplicationDbContext db,
             IStoryGenerationQueue queue,
             StoryGate gate,
             ICurrentUser currentUser,
             IAudioStorage audio,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
-            _chapterRepository = chapterRepository;
-            _seriesRepository = seriesRepository;
+            _db = db;
             _queue = queue;
             _gate = gate;
             _currentUser = currentUser;
@@ -53,10 +48,19 @@ public class GenerateStoryCommand : IRequest<TonightStoryResponse>, ISecuredRequ
         public async Task<TonightStoryResponse> Handle(GenerateStoryCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            Child? child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
-            StorySeries? active = await _seriesRepository.GetActiveForChildAsync(child!.Id, cancellationToken);
+            StorySeries? active = await _db.StorySeries
+                .AsNoTracking()
+                .Where(s => s.ChildId == child!.Id && s.IsActive)
+                .OrderByDescending(s => s.Id)
+                .FirstOrDefaultAsync(cancellationToken);
 
             if (_queue.IsGenerating(child.Id))
                 return new TonightStoryResponse { Status = TonightStoryResponse.StatusPreparing, CanGenerate = false, SeriesTitle = active?.Title };
@@ -67,7 +71,11 @@ public class GenerateStoryCommand : IRequest<TonightStoryResponse>, ISecuredRequ
             GateResult gate = await _gate.EvaluateAsync(userId, child.Id, cancellationToken);
             if (!gate.CanGenerate)
             {
-                StoryChapter? latest = active is null ? null : await _chapterRepository.GetLatestForSeriesAsync(active.Id, cancellationToken);
+                StoryChapter? latest = active is null ? null : await _db.StoryChapters
+                    .AsNoTracking()
+                    .Where(c => c.SeriesId == active.Id)
+                    .OrderByDescending(c => c.Number)
+                    .FirstOrDefaultAsync(cancellationToken);
                 return new TonightStoryResponse
                 {
                     Status = latest is not null ? TonightStoryResponse.StatusReady : TonightStoryResponse.StatusEmpty,
@@ -80,8 +88,11 @@ public class GenerateStoryCommand : IRequest<TonightStoryResponse>, ISecuredRequ
 
             // Ensure there is an active series for the pipeline to continue.
             if (active is null)
-                active = await _seriesRepository.AddAsync(
-                    new StorySeries { ChildId = child.Id, Title = "Yeni masal", IsActive = true }, cancellationToken);
+            {
+                active = new StorySeries { ChildId = child.Id, Title = "Yeni masal", IsActive = true };
+                _db.StorySeries.Add(active);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
 
             _queue.TryEnqueue(new StoryGenerationJob(userId, child.Id));
             return new TonightStoryResponse { Status = TonightStoryResponse.StatusPreparing, CanGenerate = false, SeriesTitle = active.Title };

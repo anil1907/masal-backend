@@ -1,13 +1,14 @@
 using Application.Features.Children.Rules;
 using Application.Features.Stories.Dtos;
+using Application.Persistence;
 using Application.Services.AudioStorage;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Application.Services.StoryPipeline;
 using Core.Application.Pipelines.Authorization;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Stories.Commands.Tonight;
 
@@ -20,9 +21,7 @@ public class GetTonightStoryCommand : IRequest<TonightStoryResponse>, ISecuredRe
 
     public class GetTonightStoryCommandHandler : IRequestHandler<GetTonightStoryCommand, TonightStoryResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IStoryChapterRepository _chapterRepository;
-        private readonly IStorySeriesRepository _seriesRepository;
+        private readonly IApplicationDbContext _db;
         private readonly IStoryGenerationQueue _queue;
         private readonly StoryGate _gate;
         private readonly ICurrentUser _currentUser;
@@ -30,18 +29,14 @@ public class GetTonightStoryCommand : IRequest<TonightStoryResponse>, ISecuredRe
         private readonly ChildBusinessRules _childBusinessRules;
 
         public GetTonightStoryCommandHandler(
-            IChildRepository childRepository,
-            IStoryChapterRepository chapterRepository,
-            IStorySeriesRepository seriesRepository,
+            IApplicationDbContext db,
             IStoryGenerationQueue queue,
             StoryGate gate,
             ICurrentUser currentUser,
             IAudioStorage audio,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
-            _chapterRepository = chapterRepository;
-            _seriesRepository = seriesRepository;
+            _db = db;
             _queue = queue;
             _gate = gate;
             _currentUser = currentUser;
@@ -52,10 +47,19 @@ public class GetTonightStoryCommand : IRequest<TonightStoryResponse>, ISecuredRe
         public async Task<TonightStoryResponse> Handle(GetTonightStoryCommand request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            Child? child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
-            StorySeries? active = await _seriesRepository.GetActiveForChildAsync(child!.Id, cancellationToken);
+            StorySeries? active = await _db.StorySeries
+                .AsNoTracking()
+                .Where(s => s.ChildId == child!.Id && s.IsActive)
+                .OrderByDescending(s => s.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             string? seriesTitle = active?.Title;
 
             // Generation in progress -> waiting screen.
@@ -71,7 +75,11 @@ public class GetTonightStoryCommand : IRequest<TonightStoryResponse>, ISecuredRe
 
             StoryChapter? latest = active is null
                 ? null
-                : await _chapterRepository.GetLatestForSeriesAsync(active.Id, cancellationToken);
+                : await _db.StoryChapters
+                    .AsNoTracking()
+                    .Where(c => c.SeriesId == active.Id)
+                    .OrderByDescending(c => c.Number)
+                    .FirstOrDefaultAsync(cancellationToken);
 
             string status = _queue.HasRecentFailure(child.Id)
                 ? TonightStoryResponse.StatusFailed

@@ -2,7 +2,6 @@ using Application;
 using Application.Services.AppleAuth;
 using Application.Services.AudioStorage;
 using Application.Services.CurrentUser;
-using Application.Services.EmailService;
 using Application.Services.SmsService;
 using Application.Services.StoryGeneration;
 using Application.Services.Tts;
@@ -13,13 +12,12 @@ using Core.Security.Encryption;
 using Core.Security.JWT;
 using Core.Security.WebApi.Extensions;
 using Infrastructure;
+using Infrastructure.Contexts;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Persistence.Contexts;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using Persistence;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -43,7 +41,6 @@ builder.Services.AddInfrastructureServices();
 builder.Services.Configure<TokenOptions>(configuration.GetSection("TokenOptions"));
 
 builder.Services.AddSingleton(resolver => resolver.GetRequiredService<IOptions<TokenOptions>>().Value);
-builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
 builder.Services.Configure<OtpSettings>(builder.Configuration.GetSection("OtpSettings"));
 // builder.Configuration includes user-secrets in Development, so Anthropic:ApiKey resolves there.
 builder.Services.Configure<AnthropicOptions>(builder.Configuration.GetSection("Anthropic"));

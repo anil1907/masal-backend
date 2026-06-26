@@ -1,11 +1,11 @@
 using Application.Features.Children.Rules;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
-using AutoMapper;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Pipelines.Logging;
 using Domain.Entities.Children;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Children.Commands.Update;
 
@@ -23,20 +23,17 @@ public class UpdateChildCommand : IRequest<UpdatedChildResponse>, ISecuredReques
 
     public class UpdateChildCommandHandler : IRequestHandler<UpdateChildCommand, UpdatedChildResponse>
     {
-        private readonly IChildRepository _childRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
-        private readonly IMapper _mapper;
         private readonly ChildBusinessRules _childBusinessRules;
 
         public UpdateChildCommandHandler(
-            IChildRepository childRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser,
-            IMapper mapper,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
+            _db = db;
             _currentUser = currentUser;
-            _mapper = mapper;
             _childBusinessRules = childBusinessRules;
         }
 
@@ -45,8 +42,14 @@ public class UpdateChildCommand : IRequest<UpdatedChildResponse>, ISecuredReques
             long userId = _currentUser.UserIdOrThrow();
 
             Child? child = request.Id > 0
-                ? await _childRepository.GetByIdForUserAsync(request.Id, userId, cancellationToken)
-                : await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+                ? await _db.Children
+                    .FirstOrDefaultAsync(c => c.Id == request.Id && c.UserId == userId, cancellationToken)
+                : await _db.Children
+                    .AsNoTracking()
+                    .Where(c => c.UserId == userId)
+                    .OrderByDescending(c => c.IsActive)
+                    .ThenByDescending(c => c.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
             child!.HeroName = request.HeroName;
@@ -55,8 +58,18 @@ public class UpdateChildCommand : IRequest<UpdatedChildResponse>, ISecuredReques
             child.AgeBand = request.AgeBand;
             child.Gender = request.Gender;
 
-            await _childRepository.UpdateAsync(child, cancellationToken);
-            return _mapper.Map<UpdatedChildResponse>(child);
+            _db.Children.Update(child);
+            await _db.SaveChangesAsync(cancellationToken);
+            return new UpdatedChildResponse
+            {
+                Id = child.Id,
+                HeroName = child.HeroName,
+                Fears = child.Fears,
+                Interests = child.Interests,
+                AgeBand = child.AgeBand,
+                Gender = child.Gender,
+                IsActive = child.IsActive
+            };
         }
     }
 }

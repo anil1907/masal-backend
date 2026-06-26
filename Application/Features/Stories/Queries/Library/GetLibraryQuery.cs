@@ -1,13 +1,14 @@
 using Application.Features.Children.Rules;
 using Application.Features.Stories.Dtos;
+using Application.Persistence;
 using Application.Services.AudioStorage;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Responses;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Stories.Queries.Library;
 
@@ -23,21 +24,18 @@ public class GetLibraryQuery : IRequest<LibraryResponse>, ISecuredRequest
 
     public class GetLibraryQueryHandler : IRequestHandler<GetLibraryQuery, LibraryResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IStoryChapterRepository _chapterRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
         private readonly IAudioStorage _audio;
         private readonly ChildBusinessRules _childBusinessRules;
 
         public GetLibraryQueryHandler(
-            IChildRepository childRepository,
-            IStoryChapterRepository chapterRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser,
             IAudioStorage audio,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
-            _chapterRepository = chapterRepository;
+            _db = db;
             _currentUser = currentUser;
             _audio = audio;
             _childBusinessRules = childBusinessRules;
@@ -46,10 +44,19 @@ public class GetLibraryQuery : IRequest<LibraryResponse>, ISecuredRequest
         public async Task<LibraryResponse> Handle(GetLibraryQuery request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            Child? child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
-            List<StoryChapter> chapters = await _chapterRepository.GetAllForChildAsync(child!.Id, cancellationToken);
+            List<StoryChapter> chapters = await _db.StoryChapters
+                .AsNoTracking()
+                .Where(c => c.ChildId == child!.Id)
+                .OrderByDescending(c => c.Number)
+                .ToListAsync(cancellationToken);
 
             var dtos = new List<ChapterDto>(chapters.Count);
             foreach (StoryChapter c in chapters)

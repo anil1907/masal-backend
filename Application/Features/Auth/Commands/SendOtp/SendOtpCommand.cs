@@ -1,11 +1,12 @@
 using System.Security.Cryptography;
 using Application.Features.Auth.Rules;
-using Application.Services.Repositories;
+using Application.Persistence;
 using Application.Services.SmsService;
 using Core.Application.Pipelines.Logging;
 using Core.Security.Hashing;
 using Domain.Entities.Auth;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Application.Features.Auth.Commands.SendOtp;
@@ -18,18 +19,18 @@ public class SendOtpCommand : IRequest<SendOtpResponse>, ILoggableRequest
 
     public class SendOtpCommandHandler : IRequestHandler<SendOtpCommand, SendOtpResponse>
     {
-        private readonly IPhoneOtpRepository _phoneOtpRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ISmsSender _smsSender;
         private readonly AuthBusinessRules _authBusinessRules;
         private readonly OtpSettings _otpSettings;
 
         public SendOtpCommandHandler(
-            IPhoneOtpRepository phoneOtpRepository,
+            IApplicationDbContext db,
             ISmsSender smsSender,
             AuthBusinessRules authBusinessRules,
             IOptions<OtpSettings> otpSettings)
         {
-            _phoneOtpRepository = phoneOtpRepository;
+            _db = db;
             _smsSender = smsSender;
             _authBusinessRules = authBusinessRules;
             _otpSettings = otpSettings.Value;
@@ -41,19 +42,23 @@ public class SendOtpCommand : IRequest<SendOtpResponse>, ILoggableRequest
             DateTime now = DateTime.UtcNow;
 
             // Rate limiting (server-side): cooldown between sends + daily cap per number.
-            PhoneOtp? lastActive =
-                await _phoneOtpRepository.GetLatestActiveAsync(phone, now, cancellationToken);
+            PhoneOtp? lastActive = await _db.PhoneOtps
+                .Where(o => o.PhoneNumber == phone && !o.IsUsed && o.ExpiresAt > now)
+                .OrderByDescending(o => o.CreatedDate)
+                .FirstOrDefaultAsync(cancellationToken);
             await _authBusinessRules.OtpResendCooldownShouldBePassed(lastActive, _otpSettings.ResendCooldownSeconds, now);
 
-            int sentToday =
-                await _phoneOtpRepository.CountCreatedSinceAsync(phone, now.AddDays(-1), cancellationToken);
+            int sentToday = await _db.PhoneOtps
+                .AsNoTracking()
+                .CountAsync(o => o.PhoneNumber == phone && o.CreatedDate >= now.AddDays(-1), cancellationToken);
             await _authBusinessRules.OtpDailyLimitShouldNotBeExceeded(sentToday, _otpSettings.DailyLimit);
 
             // Invalidate any still-active code so verify only ever has one target.
             if (lastActive is not null)
             {
                 lastActive.IsUsed = true;
-                await _phoneOtpRepository.UpdateAsync(lastActive, cancellationToken);
+                _db.PhoneOtps.Update(lastActive);
+                await _db.SaveChangesAsync(cancellationToken);
             }
 
             string code = GenerateNumericCode(_otpSettings.CodeLength);
@@ -68,7 +73,8 @@ public class SendOtpCommand : IRequest<SendOtpResponse>, ILoggableRequest
                 AttemptCount = 0,
                 IsUsed = false
             };
-            await _phoneOtpRepository.AddAsync(otp, cancellationToken);
+            _db.PhoneOtps.Add(otp);
+            await _db.SaveChangesAsync(cancellationToken);
 
             // The code is NEVER logged or returned. ConsoleSmsSender (dev) is the only
             // place it surfaces, behind the SMS abstraction.

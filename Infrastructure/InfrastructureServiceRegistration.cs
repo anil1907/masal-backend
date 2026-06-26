@@ -2,8 +2,6 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Application.Services.AppleAuth;
 using Application.Services.AudioStorage;
-using Application.Services.EmailService;
-using Application.Services.FileService;
 using Application.Services.SmsService;
 using Application.Services.Store;
 using Application.Services.StoryGeneration;
@@ -11,9 +9,7 @@ using Application.Services.Tts;
 using Infrastructure.Adapters.Anthropic;
 using Infrastructure.Adapters.AppleAuth;
 using Infrastructure.Adapters.CloudflareR2;
-using Infrastructure.Adapters.FileService;
 using Infrastructure.Adapters.GoogleTts;
-using Infrastructure.Adapters.MailService;
 using Infrastructure.Adapters.SmsService;
 using Infrastructure.Adapters.Store;
 using Microsoft.Extensions.DependencyInjection;
@@ -25,8 +21,6 @@ public static class InfrastructureServiceRegistration
 {
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
     {
-        services.AddScoped<FileServiceBase, FileServiceAdapter>();
-        services.AddScoped<EmailServiceBase, MailAdapter>();
         // SMS transport. Dev/test uses the console sender (no cost, no real SMS).
         // For production, swap this single line to a Netgsm adapter implementing ISmsSender.
         services.AddScoped<ISmsSender, ConsoleSmsSender>();

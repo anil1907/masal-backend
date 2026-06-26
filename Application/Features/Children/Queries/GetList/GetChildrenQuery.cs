@@ -1,10 +1,10 @@
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
-using AutoMapper;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Pipelines.Logging;
 using Domain.Entities.Children;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Children.Queries.GetList;
 
@@ -14,24 +14,35 @@ public class GetChildrenQuery : IRequest<GetChildrenResponse>, ISecuredRequest, 
 
     public class GetChildrenQueryHandler : IRequestHandler<GetChildrenQuery, GetChildrenResponse>
     {
-        private readonly IChildRepository _childRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
-        private readonly IMapper _mapper;
 
-        public GetChildrenQueryHandler(IChildRepository childRepository, ICurrentUser currentUser, IMapper mapper)
+        public GetChildrenQueryHandler(IApplicationDbContext db, ICurrentUser currentUser)
         {
-            _childRepository = childRepository;
+            _db = db;
             _currentUser = currentUser;
-            _mapper = mapper;
         }
 
         public async Task<GetChildrenResponse> Handle(GetChildrenQuery request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            List<Child> children = await _childRepository.GetAllForUserAsync(userId, cancellationToken);
+            List<Child> children = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.Id)
+                .ToListAsync(cancellationToken);
             return new GetChildrenResponse
             {
-                Children = children.Select(_mapper.Map<ChildListItem>).ToList()
+                Children = children.Select(c => new ChildListItem
+                {
+                    Id = c.Id,
+                    HeroName = c.HeroName,
+                    Fears = c.Fears,
+                    Interests = c.Interests,
+                    AgeBand = c.AgeBand,
+                    Gender = c.Gender,
+                    IsActive = c.IsActive
+                }).ToList()
             };
         }
     }

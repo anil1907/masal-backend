@@ -1,12 +1,13 @@
 using Application.Features.Children.Rules;
 using Application.Features.Stories.Dtos;
+using Application.Persistence;
 using Application.Services.CurrentUser;
-using Application.Services.Repositories;
 using Core.Application.Pipelines.Authorization;
 using Core.Application.Responses;
 using Domain.Entities.Children;
 using Domain.Entities.Stories;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Application.Features.Stories.Queries.SeriesList;
 
@@ -22,22 +23,16 @@ public class GetSeriesListQuery : IRequest<SeriesListResponse>, ISecuredRequest
 
     public class GetSeriesListQueryHandler : IRequestHandler<GetSeriesListQuery, SeriesListResponse>
     {
-        private readonly IChildRepository _childRepository;
-        private readonly IStorySeriesRepository _seriesRepository;
-        private readonly IStoryChapterRepository _chapterRepository;
+        private readonly IApplicationDbContext _db;
         private readonly ICurrentUser _currentUser;
         private readonly ChildBusinessRules _childBusinessRules;
 
         public GetSeriesListQueryHandler(
-            IChildRepository childRepository,
-            IStorySeriesRepository seriesRepository,
-            IStoryChapterRepository chapterRepository,
+            IApplicationDbContext db,
             ICurrentUser currentUser,
             ChildBusinessRules childBusinessRules)
         {
-            _childRepository = childRepository;
-            _seriesRepository = seriesRepository;
-            _chapterRepository = chapterRepository;
+            _db = db;
             _currentUser = currentUser;
             _childBusinessRules = childBusinessRules;
         }
@@ -45,11 +40,24 @@ public class GetSeriesListQuery : IRequest<SeriesListResponse>, ISecuredRequest
         public async Task<SeriesListResponse> Handle(GetSeriesListQuery request, CancellationToken cancellationToken)
         {
             long userId = _currentUser.UserIdOrThrow();
-            Child? child = await _childRepository.GetActiveForUserAsync(userId, cancellationToken);
+            Child? child = await _db.Children
+                .AsNoTracking()
+                .Where(c => c.UserId == userId)
+                .OrderByDescending(c => c.IsActive)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
-            List<StorySeries> series = await _seriesRepository.GetAllForChildAsync(child!.Id, cancellationToken);
-            List<StoryChapter> chapters = await _chapterRepository.GetAllForChildAsync(child.Id, cancellationToken);
+            List<StorySeries> series = await _db.StorySeries
+                .AsNoTracking()
+                .Where(s => s.ChildId == child!.Id)
+                .OrderByDescending(s => s.Id)
+                .ToListAsync(cancellationToken);
+            List<StoryChapter> chapters = await _db.StoryChapters
+                .AsNoTracking()
+                .Where(c => c.ChildId == child.Id)
+                .OrderByDescending(c => c.Number)
+                .ToListAsync(cancellationToken);
             Dictionary<long, int> counts = chapters
                 .GroupBy(c => c.SeriesId)
                 .ToDictionary(g => g.Key, g => g.Count());
