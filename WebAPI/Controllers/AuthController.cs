@@ -1,4 +1,5 @@
 using Application.Features.Auth.Commands.AppleSignIn;
+using Application.Features.Auth.Commands.DevLogin;
 using Application.Features.Auth.Commands.Login;
 using Application.Features.Auth.Commands.Refresh;
 using Application.Features.Auth.Commands.SendOtp;
@@ -47,6 +48,15 @@ public class AuthController : BaseController
     public async Task<IActionResult> Apple([FromBody] AppleSignInCommand command)
     {
         var result = await Mediator.Send(command);
+        return Ok(result);
+    }
+
+    /// DEV/TEST ONLY: log in as a fixed test user (no Apple/SMS). Hard-gated behind the
+    /// "DevAuth:Enabled" config flag, which must stay false in production.
+    [HttpPost("dev-login")]
+    public async Task<IActionResult> DevLogin()
+    {
+        var result = await Mediator.Send(new DevLoginCommand());
         return Ok(result);
     }
 }
