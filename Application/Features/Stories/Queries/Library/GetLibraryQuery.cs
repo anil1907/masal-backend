@@ -14,10 +14,11 @@ namespace Application.Features.Stories.Queries.Library;
 
 public class LibraryResponse : IResponse
 {
-    public List<ChapterDto> Chapters { get; set; } = [];
+    // Series (newest first), each with its chapters nested (newest chapter first).
+    public List<SeriesDto> Series { get; set; } = [];
 }
 
-/// The child's full story arc, newest chapter first. Read-only; no generation.
+/// The child's full library: series with their chapters nested, in one payload. Read-only.
 public class GetLibraryQuery : IRequest<LibraryResponse>, ISecuredRequest
 {
     public string[] Roles => [OperationClaims.AllowAnonymous];
@@ -52,17 +53,39 @@ public class GetLibraryQuery : IRequest<LibraryResponse>, ISecuredRequest
                 .FirstOrDefaultAsync(cancellationToken);
             await _childBusinessRules.ChildShouldExist(child);
 
+            List<StorySeries> series = await _db.StorySeries
+                .AsNoTracking()
+                .Where(s => s.ChildId == child!.Id)
+                .OrderByDescending(s => s.Id)
+                .ToListAsync(cancellationToken);
+
             List<StoryChapter> chapters = await _db.StoryChapters
                 .AsNoTracking()
                 .Where(c => c.ChildId == child!.Id)
-                .OrderByDescending(c => c.Number)
+                .OrderByDescending(c => c.Number)   // newest chapter first within each series
                 .ToListAsync(cancellationToken);
 
-            var dtos = new List<ChapterDto>(chapters.Count);
+            // Map each chapter once (signs its audio URL), bucketed by series.
+            var chaptersBySeries = new Dictionary<long, List<ChapterDto>>();
             foreach (StoryChapter c in chapters)
-                dtos.Add(await ChapterDto.FromAsync(c, _audio, cancellationToken));
+            {
+                if (!chaptersBySeries.TryGetValue(c.SeriesId, out List<ChapterDto>? bucket))
+                    chaptersBySeries[c.SeriesId] = bucket = [];
+                bucket.Add(await ChapterDto.FromAsync(c, _audio, cancellationToken));
+            }
 
-            return new LibraryResponse { Chapters = dtos };
+            return new LibraryResponse
+            {
+                Series = series.Select(s => new SeriesDto
+                {
+                    Id = s.Id,
+                    Title = s.Title,
+                    IsActive = s.IsActive,
+                    CreatedAt = s.CreatedDate,
+                    ChapterCount = chaptersBySeries.TryGetValue(s.Id, out List<ChapterDto>? ch) ? ch.Count : 0,
+                    Chapters = chaptersBySeries.GetValueOrDefault(s.Id) ?? []
+                }).ToList()
+            };
         }
     }
 }

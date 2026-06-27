@@ -8,7 +8,6 @@ using Application.Features.Stories.Commands.SynthesizeStore;
 using Application.Features.Stories.Commands.Tonight;
 using Application.Features.Stories.Queries.AudioUrl;
 using Application.Features.Stories.Queries.Library;
-using Application.Features.Stories.Queries.SeriesList;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -57,11 +56,6 @@ public class StoriesController : BaseController
     [HttpPost("series/new")]
     public async Task<IActionResult> NewSeries()
         => Ok(await Mediator.Send(new NewStorySeriesCommand()));
-
-    /// List the child's story series (named arcs) with chapter counts + which is active.
-    [HttpGet("series")]
-    public async Task<IActionResult> Series()
-        => Ok(await Mediator.Send(new GetSeriesListQuery()));
 
     /// Resume a paused series: make it active so tonight continues it.
     [HttpPost("series/activate")]
