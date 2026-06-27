@@ -20,10 +20,6 @@ public class DevLoginCommand : IRequest<DevLoginResponse>
 {
     public class DevLoginCommandHandler : IRequestHandler<DevLoginCommand, DevLoginResponse>
     {
-        // Stable identity for the throwaway test account.
-        private const string TestUsername = "dev_tester";
-        private const string TestPhone = "+900000000000";
-
         private readonly IApplicationDbContext _db;
         private readonly ITokenHelper _tokenHelper;
         private readonly TokenOptions _tokenOptions;
@@ -42,11 +38,10 @@ public class DevLoginCommand : IRequest<DevLoginResponse>
         {
             DateTime now = DateTime.UtcNow;
 
-            User? user = await _db.Users
-                .FirstOrDefaultAsync(u => u.Username == TestUsername, cancellationToken);
-            bool isNewUser = user is null;
-            if (isNewUser)
-                user = await CreateTestUser(cancellationToken);
+            // A FRESH throwaway user every call: each "Test girişi" starts at a clean slate
+            // (no child yet -> onboarding shows -> first child creates fine, no free-plan cap).
+            User user = await CreateTestUser(cancellationToken);
+            const bool isNewUser = true;
 
             List<OperationClaim> operationClaims = await _db.UserOperationClaims
                 .AsNoTracking()
@@ -76,12 +71,13 @@ public class DevLoginCommand : IRequest<DevLoginResponse>
 
         private async Task<User> CreateTestUser(CancellationToken cancellationToken)
         {
+            string suffix = Guid.NewGuid().ToString("N")[..12];
             HashingHelper.CreatePasswordHash(Guid.NewGuid().ToString("N"), out byte[] hash, out byte[] salt);
             User user = new()
             {
-                Username = TestUsername,
-                Email = "dev@masalo.test",
-                PhoneNumber = TestPhone,
+                Username = $"dev_{suffix}",
+                Email = $"dev_{suffix}@ninnio.test",
+                PhoneNumber = null,
                 PasswordHash = hash,
                 PasswordSalt = salt
             };
