@@ -15,7 +15,6 @@ public class ChapterDto
     public string AudioUrl { get; set; } = "";
     public string AudioObjectKey { get; set; } = "";
     public int DurationSeconds { get; set; }
-    public bool Listened { get; set; }
     public DateTime CreatedAt { get; set; }
 
     public static async Task<ChapterDto> FromAsync(StoryChapter c, IAudioStorage audio, CancellationToken ct)
@@ -29,7 +28,6 @@ public class ChapterDto
             AudioUrl = await audio.GetSignedUrlAsync(c.AudioObjectKey, ct),
             AudioObjectKey = c.AudioObjectKey,
             DurationSeconds = c.DurationSeconds,
-            Listened = c.ListenedDate.HasValue,
             CreatedAt = c.CreatedDate
         };
 }

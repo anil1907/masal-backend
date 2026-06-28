@@ -1,7 +1,6 @@
 using Application.Features.Stories.Commands.ActivateSeries;
 using Application.Features.Stories.Commands.Generate;
 using Application.Features.Stories.Commands.GenerateChapter;
-using Application.Features.Stories.Commands.MarkListened;
 using Application.Features.Stories.Commands.NewSeries;
 using Application.Features.Stories.Commands.SynthesizePreview;
 using Application.Features.Stories.Commands.SynthesizeStore;
@@ -60,11 +59,6 @@ public class StoriesController : BaseController
     /// Resume a paused series: make it active so tonight continues it.
     [HttpPost("series/activate")]
     public async Task<IActionResult> ActivateSeries([FromBody] ActivateSeriesCommand command)
-        => Ok(await Mediator.Send(command));
-
-    /// Mark a chapter as fully heard - unlocks the next day's chapter.
-    [HttpPost("mark-listened")]
-    public async Task<IActionResult> MarkListened([FromBody] MarkChapterListenedCommand command)
         => Ok(await Mediator.Send(command));
 
     /// Re-mint a fresh signed audio URL for an already-stored chapter (re-open without regenerating).

@@ -19,7 +19,6 @@ public class StoryChapterConfiguration : IEntityTypeConfiguration<StoryChapter>
         builder.Property(c => c.Summary).HasColumnName("Summary").IsRequired();
         builder.Property(c => c.AudioObjectKey).HasColumnName("AudioObjectKey").IsRequired();
         builder.Property(c => c.DurationSeconds).HasColumnName("DurationSeconds").IsRequired();
-        builder.Property(c => c.ListenedDate).HasColumnName("ListenedDate");
         builder.Property(c => c.CreatedDate).HasColumnName("CreatedDate").IsRequired();
         builder.Property(c => c.UpdatedDate).HasColumnName("UpdatedDate");
         builder.Property(c => c.DeletedDate).HasColumnName("DeletedDate");
