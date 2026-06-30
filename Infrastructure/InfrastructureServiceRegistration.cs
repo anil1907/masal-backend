@@ -57,8 +57,8 @@ public static class InfrastructureServiceRegistration
         });
         services.AddScoped<IAudioStorage, R2AudioStorage>();
 
-        // Store purchase verification. Dev trusts the client; production swaps in Apple verification.
-        services.AddScoped<IStoreVerifier, DevStoreVerifier>();
+        // Store purchase verification: validates the StoreKit 2 signed transaction (JWS) against Apple's root CA.
+        services.AddScoped<IStoreVerifier, AppleStoreVerifier>();
 
         // Sign in with Apple: validates identity tokens against Apple's public JWKS.
         services.AddHttpClient<IAppleAuthVerifier, AppleAuthVerifier>(c =>

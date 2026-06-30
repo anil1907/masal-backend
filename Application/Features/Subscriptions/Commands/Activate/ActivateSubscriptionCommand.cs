@@ -18,7 +18,8 @@ public class ActivateSubscriptionCommand : IRequest<GetSubscriptionStatusRespons
 {
     public string ProductId { get; set; } = default!;
     public string Provider { get; set; } = "apple";
-    public string? TransactionId { get; set; }
+    /// StoreKit 2 signed transaction (JWS) - verified against Apple's root CA before granting entitlement.
+    public string? SignedTransaction { get; set; }
 
     public string[] Roles => [OperationClaims.AllowAnonymous];
 
@@ -43,7 +44,7 @@ public class ActivateSubscriptionCommand : IRequest<GetSubscriptionStatusRespons
             long userId = _currentUser.UserIdOrThrow();
 
             StoreVerificationResult verdict = await _storeVerifier.VerifyAsync(
-                request.Provider, request.ProductId, request.TransactionId, cancellationToken);
+                request.Provider, request.ProductId, request.SignedTransaction, cancellationToken);
             if (!verdict.Valid)
                 throw new BusinessException("Satın alma doğrulanamadı.");
 
