@@ -140,4 +140,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.UseCors();
 
+// Public, unauthenticated liveness probe (keeps the free-tier instance warm; 200 = awake).
+app.MapGet("/health", () => Results.Ok("ok")).AllowAnonymous();
+
 app.Run();
