@@ -1,6 +1,7 @@
 using Application.Features.Stories.Rules;
 using Application.Persistence;
 using Application.Services.AudioStorage;
+using Application.Services.Push;
 using Application.Services.StoryGeneration;
 using Application.Services.Tts;
 using Core.CrossCuttingConcerns.Exception.Types;
@@ -23,6 +24,7 @@ public class StoryPipeline : IStoryPipeline
     private readonly IAudioStorage _audio;
     private readonly StoryBusinessRules _storyBusinessRules;
     private readonly StorySettings _storySettings;
+    private readonly IPushSender _push;
 
     public StoryPipeline(
         IApplicationDbContext db,
@@ -31,7 +33,8 @@ public class StoryPipeline : IStoryPipeline
         ITtsSynthesizer tts,
         IAudioStorage audio,
         StoryBusinessRules storyBusinessRules,
-        IOptions<StorySettings> storySettings)
+        IOptions<StorySettings> storySettings,
+        IPushSender push)
     {
         _db = db;
         _generator = generator;
@@ -40,6 +43,7 @@ public class StoryPipeline : IStoryPipeline
         _audio = audio;
         _storyBusinessRules = storyBusinessRules;
         _storySettings = storySettings.Value;
+        _push = push;
     }
 
     public async Task GenerateNextChapterAsync(long userId, long childId, CancellationToken cancellationToken = default)
@@ -133,6 +137,21 @@ public class StoryPipeline : IStoryPipeline
                 _db.StorySeries.Update(tracked);
                 await _db.SaveChangesAsync(cancellationToken);
             }
+        }
+
+        // Notify the parent that the bedtime story is ready. Best-effort: a push failure
+        // must never fail the generation that already succeeded and was persisted.
+        try
+        {
+            await _push.SendToUserAsync(
+                userId,
+                "Masal hazır 🌙",
+                $"{child.HeroName} için yeni masal seni bekliyor.",
+                cancellationToken);
+        }
+        catch
+        {
+            // swallowed by design
         }
     }
 

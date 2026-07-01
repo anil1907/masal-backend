@@ -1,5 +1,6 @@
 using Domain.Entities.Auth;
 using Domain.Entities.Children;
+using Domain.Entities.Notifications;
 using Domain.Entities.Stories;
 using Domain.Entities.Subscriptions;
 using Domain.Entities.Users;
@@ -25,6 +26,7 @@ public interface IApplicationDbContext
     DbSet<StoryGenerationLog> StoryGenerationLogs { get; }
     DbSet<StoryChapter> StoryChapters { get; }
     DbSet<StorySeries> StorySeries { get; }
+    DbSet<DeviceToken> DeviceTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

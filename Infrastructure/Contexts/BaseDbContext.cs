@@ -3,6 +3,7 @@ using Application.Persistence;
 using Core.Repositories;
 using Domain.Entities.Auth;
 using Domain.Entities.Children;
+using Domain.Entities.Notifications;
 using Domain.Entities.Stories;
 using Domain.Entities.Subscriptions;
 using Domain.Entities.Users;
@@ -24,6 +25,7 @@ public class BaseDbContext : DbContext, IApplicationDbContext
     public DbSet<StoryGenerationLog> StoryGenerationLogs { get; set; }
     public DbSet<StoryChapter> StoryChapters { get; set; }
     public DbSet<StorySeries> StorySeries { get; set; }
+    public DbSet<DeviceToken> DeviceTokens { get; set; }
 
     public BaseDbContext(DbContextOptions dbContextOptions,
         IConfiguration configuration)

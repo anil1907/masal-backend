@@ -2,6 +2,7 @@ using Application;
 using Application.Services.AppleAuth;
 using Application.Services.AudioStorage;
 using Application.Services.CurrentUser;
+using Application.Services.Push;
 using Application.Services.SmsService;
 using Application.Services.StoryGeneration;
 using Application.Services.Tts;
@@ -50,6 +51,8 @@ builder.Services.Configure<GoogleTtsOptions>(builder.Configuration.GetSection("G
 builder.Services.Configure<CloudflareR2Options>(builder.Configuration.GetSection("CloudflareR2"));
 // Apple Sign-In: Audience must match the iOS bundle id (default com.masal.app).
 builder.Services.Configure<AppleAuthOptions>(builder.Configuration.GetSection("AppleAuth"));
+// APNs push: Apns__KeyId / Apns__TeamId / Apns__BundleId / Apns__PrivateKey (env in prod).
+builder.Services.Configure<ApnsOptions>(builder.Configuration.GetSection("Apns"));
 
 builder.Host.UseSerilog((_, lc) => lc.ReadFrom.Configuration(configuration));
 

@@ -2,6 +2,7 @@ using Amazon.Runtime;
 using Amazon.S3;
 using Application.Services.AppleAuth;
 using Application.Services.AudioStorage;
+using Application.Services.Push;
 using Application.Services.SmsService;
 using Application.Services.Store;
 using Application.Services.StoryGeneration;
@@ -10,6 +11,7 @@ using Infrastructure.Adapters.Anthropic;
 using Infrastructure.Adapters.AppleAuth;
 using Infrastructure.Adapters.CloudflareR2;
 using Infrastructure.Adapters.GoogleTts;
+using Infrastructure.Adapters.Push;
 using Infrastructure.Adapters.SmsService;
 using Infrastructure.Adapters.Store;
 using Microsoft.Extensions.DependencyInjection;
@@ -64,6 +66,12 @@ public static class InfrastructureServiceRegistration
         services.AddHttpClient<IAppleAuthVerifier, AppleAuthVerifier>(c =>
         {
             c.BaseAddress = new Uri("https://appleid.apple.com");
+            c.Timeout = TimeSpan.FromSeconds(15);
+        });
+
+        // APNs push (token-based .p8 over HTTP/2). No-ops if Apns config is absent.
+        services.AddHttpClient<IPushSender, ApnsPushSender>(c =>
+        {
             c.Timeout = TimeSpan.FromSeconds(15);
         });
         return services;
